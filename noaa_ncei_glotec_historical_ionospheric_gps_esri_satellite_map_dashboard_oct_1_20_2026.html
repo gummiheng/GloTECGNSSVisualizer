@@ -74,8 +74,49 @@
       background: #334155;
       border-radius: 3px;
     }
-    ::-webkit-scrollbar-thumb:hover {
+        ::-webkit-scrollbar-thumb:hover {
       background: #475569;
+    }
+    .hex-label-icon {
+      pointer-events: none !important;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+    .hex-label-badge {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+      line-height: 1.05;
+      padding: 1px 2.5px;
+      border-radius: 3px;
+      white-space: nowrap;
+      user-select: none;
+      pointer-events: none;
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      letter-spacing: -0.02em;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.98), 0 0 4px rgba(0, 0, 0, 0.85);
+    }
+    .map-fullscreen-active {
+      position: fixed !important;
+      inset: 8px !important;
+      z-index: 3000 !important;
+      height: calc(100vh - 16px) !important;
+      max-height: calc(100vh - 16px) !important;
+      box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.95) !important;
+    }
+    .leaflet-tooltip.hex-hover-tooltip {
+      background: rgba(15, 23, 42, 0.95) !important;
+      border: 1px solid rgba(56, 189, 248, 0.5) !important;
+      color: #f8fafc !important;
+      font-family: 'JetBrains Mono', monospace !important;
+      font-size: 11px !important;
+      padding: 3px 7px !important;
+      border-radius: 6px !important;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.6) !important;
     }
   </style>
 </head>
@@ -83,7 +124,7 @@
 
   <!-- Top Navigation Header -->
   <header class="sticky top-0 z-[1000] bg-slate-950/90 backdrop-blur-md border-b border-slate-800/80 px-4 py-2.5">
-    <div class="max-w-[1600px] mx-auto flex flex-wrap items-center justify-between gap-3">
+    <div class="max-w-[1960px] mx-auto flex flex-wrap items-center justify-between gap-3">
       <div class="flex items-center gap-3">
         <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-sky-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-sky-500/20 border border-sky-400/30">
           <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -94,7 +135,7 @@
           <div class="flex items-center gap-2 flex-wrap">
             <h1 class="text-sm sm:text-base font-bold tracking-tight text-white">NOAA NCEI Space Weather Portal — GloTEC Satellite GIS</h1>
             <span class="px-2 py-0.5 text-[11px] font-mono font-semibold uppercase rounded-full bg-sky-500/15 text-sky-300 border border-sky-500/30">SWPC-Models: GLOTEC</span>
-            <span id="stormBadge" class="px-2 py-0.5 text-[11px] font-mono font-semibold rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">Full Archive: 2025-02-24 → 2026-10-24</span>
+            <span id="stormBadge" class="px-2 py-0.5 text-[11px] font-mono font-semibold rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">Full Archive: 2025-02-24 → 2026-10-26</span>
             <span id="dailySyncBadge" class="px-2 py-0.5 text-[11px] font-mono font-semibold rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">Daily Auto-Pull: ON (geojson_2d_urt.json)</span>
             <span id="jammerHeaderBadge" class="px-2 py-0.5 text-[11px] font-mono font-semibold rounded-full bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/40">8 Active GNSS Jammers</span>
           </div>
@@ -138,7 +179,7 @@
   </header>
 
   <!-- Main Workspace Container -->
-  <main class="flex-1 max-w-[1600px] w-full mx-auto p-3 sm:p-4 space-y-4">
+  <main class="flex-1 max-w-[1960px] w-full mx-auto p-3 sm:p-4 space-y-4">
 
     <!-- Top KPI & Telemetry Summary Bar -->
     <section class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
@@ -199,8 +240,426 @@
       </div>
     </section>
 
-    <!-- Historical Time Scrubber (Oct 1 to Oct 20, 2026) & Event Presets -->
-    <section class="bg-slate-900/95 border border-slate-800 rounded-xl p-3.5 space-y-3">
+    <!-- Map + Right Control Sidebar Grid -->
+    <section class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+
+      <!-- Extended 12-Col Full-Width Esri World Imagery Satellite Map -->
+      <div id="mapMainCard" class="lg:col-span-12 bg-slate-900 border border-slate-800 rounded-xl overflow-hidden flex flex-col transition-all duration-200">
+        <!-- Map Top Control Strip -->
+        <div class="px-3.5 py-2.5 bg-slate-950/80 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-xs font-semibold text-slate-300">Mode:</span>
+            <select id="selectMetric" aria-label="Map metric layer" class="bg-slate-800 border border-sky-500/50 rounded-lg px-2 py-1 text-xs font-medium text-white focus:outline-none focus:border-sky-500">
+              <option value="nav_status" selected>Daily Layer Hexagon NAV Status (1 Oct, 2 Oct, 3 Oct...)</option>
+              <option value="highest_count">🏆 Highest Count Layer (Green / Amber / Red Majority)</option>
+              <option value="tec">Vertical TEC Heatmap (TECU = 10¹⁶ el/m²)</option>
+              <option value="jammer_composite">Combined TEC + GNSS Jammer Denial Index</option>
+              <option value="anomaly">30-Day TEC Anomaly (ΔTECU)</option>
+              <option value="delay">GPS L1 Signal Delay (Meters at 1575.42 MHz)</option>
+              <option value="quality">Observation Quality Flag (0–5)</option>
+            </select>
+
+            <span class="text-xs font-semibold text-slate-300">Geometry:</span>
+            <select id="selectGridGeometry" aria-label="Heatmap grid geometry" class="bg-slate-800 border border-sky-500/40 rounded-lg px-2 py-1 text-xs font-medium text-sky-300 focus:outline-none focus:border-sky-500">
+              <option value="hex_fine">Hexagonal Grid Heatmap (5° Honeycomb)</option>
+              <option value="hex_coarse">Hexagonal Grid Heatmap (7.5° Macro Hex)</option>
+              <option value="rect">Rectangular Grid (2.5°×5° Standard)</option>
+            </select>
+
+            <select id="selectBasemap" aria-label="Esri basemap selection" class="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs font-medium text-white focus:outline-none focus:border-sky-500">
+              <option value="esri_sat_labels">Esri Satellite + Boundaries</option>
+              <option value="esri_sat">Esri Pure Satellite</option>
+              <option value="esri_topo">Esri Topographic</option>
+            </select>
+          </div>
+
+          <div class="flex items-center gap-3 flex-wrap">
+            <label class="inline-flex items-center gap-1.5 text-xs text-sky-300 font-medium cursor-pointer">
+              <input id="chkShowGrid" type="checkbox" checked class="rounded border-slate-600 text-sky-500 focus:ring-0" />
+              <span>Hex Grid</span>
+            </label>
+            <label class="inline-flex items-center gap-1.5 text-xs text-amber-300 font-semibold cursor-pointer" title="Display unique Row-Column ID label (e.g. A01, S47) inside each hexagon">
+              <input id="chkShowHexLabels" type="checkbox" checked class="rounded border-slate-600 text-amber-500 focus:ring-0" />
+              <span>Hex ID Labels</span>
+            </label>
+            <label class="inline-flex items-center gap-1.5 text-xs text-fuchsia-300 font-semibold cursor-pointer">
+              <input id="chkShowJammers" type="checkbox" checked class="rounded border-slate-600 text-fuchsia-500 focus:ring-0" />
+              <span>GNSS Jammers (EW)</span>
+            </label>
+            <label class="inline-flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer">
+              <input id="chkShowStations" type="checkbox" checked class="rounded border-slate-600 text-sky-500 focus:ring-0" />
+              <span>GNSS Stations</span>
+            </label>
+            <label class="inline-flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer">
+              <input id="chkShowEquator" type="checkbox" checked class="rounded border-slate-600 text-sky-500 focus:ring-0" />
+              <span>Mag Equator</span>
+            </label>
+            <div class="h-4 w-px bg-slate-700 mx-0.5 hidden sm:block"></div>
+            <div class="flex items-center gap-1.5">
+              <label for="selectMapHeight" class="text-[11px] font-semibold text-cyan-300">Map Size:</label>
+              <select id="selectMapHeight" aria-label="Dashboard map height" class="bg-slate-800 border border-cyan-500/40 rounded-lg px-2 py-1 text-xs font-semibold text-cyan-200 focus:outline-none focus:border-cyan-400">
+                <option value="820px" selected>Extended (820px Tall)</option>
+                <option value="1000px">Extra Tall (1000px)</option>
+                <option value="1200px">Ultra Tall (1200px)</option>
+                <option value="88vh">Full Viewport (88vh)</option>
+                <option value="560px">Compact (560px)</option>
+              </select>
+              <button id="btnToggleMapLayout" type="button" class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 transition" title="Switch between Full-Width Extended Map (12 Cols) and Split Side-by-Side View (8/4 Cols)">
+                ⛶ Full-Width Map: ON
+              </button>
+              <button id="btnFullscreenMap" type="button" class="px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-500/25 hover:bg-indigo-500/40 text-indigo-200 border border-indigo-400/50 transition" title="Maximize the map across the entire screen (press Esc to exit)">
+                🗖 Maximize
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Hexagon NAV Status Interactive Painter Strip -->
+        <div class="px-3.5 py-2 bg-slate-900/95 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2">
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-300 mr-1">Click Hex Brush:</span>
+            <button type="button" data-nav-brush="FULLNAV" class="nav-brush-btn inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-500/20 hover:bg-emerald-500/35 text-emerald-300 border border-emerald-500/50 transition">
+              <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+              <span>Green: OK</span>
+              <span id="countFullnav" class="ml-1 px-1.5 py-0.2 rounded bg-black/30 font-mono text-[10px]">0</span>
+            </button>
+            <button type="button" data-nav-brush="3NAV" class="nav-brush-btn inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500/20 hover:bg-amber-500/35 text-amber-300 border border-amber-500/50 transition">
+              <span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+              <span>Amber: Moderate Degradation</span>
+              <span id="count3nav" class="ml-1 px-1.5 py-0.2 rounded bg-black/30 font-mono text-[10px]">0</span>
+            </button>
+            <button type="button" data-nav-brush="NONAV" class="nav-brush-btn inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-rose-600 text-white border-2 border-white shadow transition">
+              <span class="w-2.5 h-2.5 rounded-full bg-white"></span>
+              <span>Red: Highly Degraded</span>
+              <span id="countNonav" class="ml-1 px-1.5 py-0.2 rounded bg-black/30 font-mono text-[10px]">0</span>
+            </button>
+            <button type="button" data-nav-brush="CLEAR" class="nav-brush-btn inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-600 transition">
+              <span>Uncolored (Eraser)</span>
+            </button>
+          </div>
+
+          <div class="flex items-center gap-2 flex-wrap">
+            <label class="inline-flex items-center gap-1.5 text-[11px] text-emerald-300 font-medium cursor-pointer bg-slate-950/80 px-2 py-1 rounded-lg border border-slate-800" title="When checked, Auto-Classified hexagons dynamically re-evaluate Green/Amber/Red as you scrub Date & Time">
+              <input id="chkDynamicHexAuto" type="checkbox" class="rounded border-slate-600 text-emerald-500 focus:ring-0" />
+              <span>Sync Hex Status with Date/Time</span>
+            </label>
+            <button id="btnSetPinnedHexStatus" type="button" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 transition">
+              Apply Brush to Pinned Hex
+            </button>
+            <button id="btnAutoClassifyHex" type="button" class="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition" title="Auto-set hexagons based on TEC & Jammer thresholds">
+              Auto-Classify All
+            </button>
+            <button id="btnClearAllHexColors" type="button" class="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700 transition">
+              Clear All (Uncolored)
+            </button>
+          </div>
+        </div>
+
+        <!-- Hexagon Label Selector & Batch Color Updater Bar -->
+        <div class="px-3.5 py-2 bg-slate-950/90 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2">
+          <div class="flex items-center gap-2 flex-wrap flex-1">
+            <span class="text-[11px] font-semibold text-sky-300 uppercase tracking-wider whitespace-nowrap">Select Hex by Label:</span>
+            <input id="inputHexFilterSearch" type="text" placeholder="Filter ID/Coord (e.g. S47)" class="w-28 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs font-mono text-white focus:outline-none focus:border-sky-500" title="Filter the Hexagon ID dropdown by Label (e.g. S47) or Latitude/Longitude" />
+            <select id="selectHexIdList" aria-label="Select Hexagon Label" class="bg-slate-900 border border-sky-500/40 rounded-lg px-2 py-1 text-xs font-mono text-sky-200 focus:outline-none focus:border-sky-400 max-w-[230px]">
+              <!-- Populated dynamically with all Hex IDs e.g. A01..AK60 -->
+            </select>
+            <input id="inputHexBatchLabels" type="text" value="S47" placeholder="IDs or Range: S47, S48 or S45-S50" class="w-44 sm:w-52 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs font-mono text-amber-300 focus:outline-none focus:border-sky-500" title="Enter one or multiple Hex Labels (e.g. S47, S48) or ranges (e.g. S45-S50)" />
+            <button id="btnToggleDragSelectMode" type="button" class="px-2.5 py-1 rounded-lg text-xs font-bold bg-sky-500 text-slate-950 border-2 border-white shadow transition inline-flex items-center gap-1.5" title="When ON, click and drag across multiple hexagons on the map to select them, then click Red, Amber, or Green to color all selected grids">
+              <span>🖱️ Drag Across Grids: ON</span>
+            </button>
+            <select id="selectDragGridStyle" aria-label="Drag selection style" class="bg-slate-900 border border-sky-500/40 rounded-lg px-2 py-1 text-[11px] font-medium text-sky-200 focus:outline-none focus:border-sky-400" title="Choose whether dragging sweeps along your cursor path or draws a rectangle box">
+              <option value="sweep" selected>Drag Style: Sweep Path</option>
+              <option value="box">Drag Style: Rectangle Box</option>
+            </select>
+            <label class="inline-flex items-center gap-1 text-[11px] text-sky-300 cursor-pointer bg-slate-900/90 px-2 py-1 rounded-lg border border-slate-800" title="When enabled, clicking or dragging hexagons adds to existing selection instead of replacing it">
+              <input id="chkMultiSelectHexMode" type="checkbox" class="rounded border-slate-600 text-sky-500 focus:ring-0" />
+              <span>Keep/Append Selection (<span id="selectedHexCountText">1</span>)</span>
+            </label>
+          </div>
+
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <select id="selectHexTargetColor" aria-label="Target Hexagon Status Color" class="bg-slate-900 border border-emerald-500/50 rounded-lg px-2.5 py-1 text-xs font-semibold text-white focus:outline-none focus:border-emerald-400">
+              <option value="FULLNAV">🟢 Green: OK</option>
+              <option value="3NAV">🟡 Amber: Moderate Degradation</option>
+              <option value="NONAV">🔴 Red: Highly Degraded</option>
+              <option value="CLEAR">⚪ Uncolored (Default)</option>
+            </select>
+            <button id="btnApplyHexSelectionUpdate" type="button" class="px-3 py-1 rounded-lg text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition shadow" title="Apply selected status color to the specified Hexagon ID(s) and update dashboard">
+              ✓ Update Dashboard
+            </button>
+            <button id="btnSaveHexGridPermanently" type="button" class="px-3 py-1 rounded-lg text-xs font-bold bg-cyan-500 hover:bg-cyan-400 text-slate-950 transition shadow inline-flex items-center gap-1" title="Permanently save the newly updated hexagonal grid to browser storage so it persists across reloads and sessions">
+              <span>💾 Save Grid Permanently</span>
+            </button>
+            <button id="btnSavePermanentHtml" type="button" class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-500/25 hover:bg-indigo-500/40 text-indigo-200 border border-indigo-400/50 transition inline-flex items-center gap-1" title="Download/Save a standalone HTML file with the updated hexagonal grid permanently baked into the dashboard code">
+              <span>📥 Save Permanent HTML</span>
+            </button>
+            <button id="btnFocusSelectedHex" type="button" class="px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 transition" title="Pan and zoom map to the selected Hexagon ID">
+              Locate Hex
+            </button>
+            <label class="inline-flex items-center gap-1 text-[11px] text-cyan-300 cursor-pointer bg-slate-900/90 px-2 py-1 rounded-lg border border-cyan-500/30" title="Automatically save every hexagon status change to permanent storage">
+              <input id="chkAutoSaveHexGrid" type="checkbox" checked class="rounded border-slate-600 text-cyan-500 focus:ring-0" />
+              <span>Auto-Save</span>
+            </label>
+            <span id="hexPermanentSaveBadge" class="px-2 py-0.5 rounded-md text-[10px] font-mono font-semibold bg-slate-900 text-emerald-300 border border-emerald-500/30" title="Permanent Hexagonal Grid Save Status">
+              Saved: Ready (Auto-Save ON)
+            </span>
+            <button id="btnResetPermanentHexGrid" type="button" class="px-2 py-1 rounded-lg text-[10px] font-medium bg-slate-900 hover:bg-rose-950/70 text-slate-400 hover:text-rose-300 border border-slate-800 transition" title="Delete permanently saved hexagonal grid from storage and reset to uncolored">
+              Reset Saved
+            </button>
+          </div>
+        </div>
+
+        <!-- Daily Map Layers Dropdown (1 Oct, 2 Oct, 3 Oct...) & Highest Count Summary Layer Bar -->
+        <div id="dailyMapLayersBar" class="px-3.5 py-2 bg-slate-900/95 border-b border-slate-800">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center gap-2 flex-wrap">
+              <label for="selectDailyMapLayer" class="text-[11px] font-bold uppercase tracking-wider text-amber-300 flex items-center gap-1 cursor-pointer">
+                <svg class="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                </svg>
+                <span>Daily Map Layer:</span>
+              </label>
+
+              <!-- Individual Daily Map Layer Dropdown Selector (1 Oct, 2 Oct, 3 Oct... + Highest Count Layer) -->
+              <div class="inline-flex items-center gap-1">
+                <button id="btnPrevDailyLayer" type="button" class="px-2 py-1 rounded-lg text-xs font-mono font-bold bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 transition" title="Previous Daily Map Layer">
+                  ◀
+                </button>
+                <select id="selectDailyMapLayer" aria-label="Select individual daily map layer or Highest Count summary layer" class="bg-slate-950 border border-sky-500/60 hover:border-sky-400 rounded-lg px-2.5 py-1 text-xs font-mono font-bold text-sky-200 focus:outline-none focus:border-amber-400 shadow-inner min-w-[260px]">
+                  <!-- Populated dynamically with 1 Oct, 2 Oct, 3 Oct ... 27 Oct + Highest Count Layer -->
+                </select>
+                <button id="btnNextDailyLayer" type="button" class="px-2 py-1 rounded-lg text-xs font-mono font-bold bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 transition" title="Next Daily Map Layer">
+                  ▶
+                </button>
+              </div>
+
+              <span id="activeMapLayerBadge" class="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold bg-sky-500/20 text-sky-300 border border-sky-400/50">
+                Active Layer: 10 Oct (2026-10-10)
+              </span>
+
+              <!-- Prominent Button to Switch to the Highest Count Layer (Green / Amber / Red) -->
+              <button id="btnActivateHighestCountLayer" type="button" class="px-3 py-1 rounded-lg text-xs font-bold bg-gradient-to-r from-emerald-500/25 via-amber-500/25 to-rose-500/25 hover:from-emerald-500/40 hover:via-amber-500/40 hover:to-rose-500/40 text-white border border-amber-400/60 transition shadow inline-flex items-center gap-1.5" title="Show for each hexagon grid the highest count of Green (OK), Amber (Moderate), and Red (Highly Degraded) across daily layers">
+                <span>🏆 Highest Count Layer (Green / Amber / Red)</span>
+                <span id="highestCountSummaryPill" class="px-1.5 py-0.2 rounded bg-slate-950/90 font-mono text-[10px] text-amber-300 border border-slate-700">G:0 | A:0 | R:0</span>
+              </button>
+            </div>
+
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <label for="selectHighestCountScope" class="text-[10px] font-mono text-slate-400">Count Scope:</label>
+              <select id="selectHighestCountScope" aria-label="Highest count aggregation scope" class="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-[11px] font-medium text-slate-200 focus:outline-none focus:border-amber-400">
+                <option value="saved_only" selected>Saved / Painted Day Layers (1 Oct, 2 Oct, 3 Oct...)</option>
+                <option value="all_oct_auto">All Oct 1–27 Layers (Saved + Auto GloTEC/EW)</option>
+              </select>
+
+              <label for="selectHighestTieBreak" class="text-[10px] font-mono text-slate-400">Tie-Break:</label>
+              <select id="selectHighestTieBreak" aria-label="Tie-breaker rule when counts are equal" class="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-[11px] font-medium text-slate-200 focus:outline-none focus:border-amber-400">
+                <option value="severity" selected>Worst Severity (Red &gt; Amber &gt; Green)</option>
+                <option value="green_first">Green First (Green &gt; Amber &gt; Red)</option>
+              </select>
+
+              <button id="btnSeedOctDailyLayers" type="button" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-amber-500/20 hover:bg-amber-500/35 text-amber-200 border border-amber-500/40 transition" title="Populate 1 Oct – 27 Oct daily layers with regional GNSS Jammer & Ionospheric Storm hexagon statuses">
+                ⚡ Auto-Populate 1 Oct–27 Oct Layers
+              </button>
+              <button id="btnCopyDayLayerToNext" type="button" class="px-2 py-1 rounded-lg text-[11px] font-medium bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 transition" title="Copy current day layer's hexagon colors into another date layer">
+                📋 Copy Layer To...
+              </button>
+              <button id="btnAddCustomDateLayer" type="button" class="px-2 py-1 rounded-lg text-[11px] font-semibold bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 transition" title="Add or jump to any custom date layer">
+                + Add Date Layer
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Extended Leaflet Map Viewport (820px default height + drag-resizable bottom edge) -->
+        <div id="mapViewportWrapper" class="relative w-full flex-1 min-h-[540px] resize-y overflow-hidden" style="height: 820px;">
+          <div id="mapContainer" class="w-full h-full z-10"></div>
+
+          <!-- Floating Drag-Across Grid Selection & Color Action Bar (Top-Left next to Zoom Controls) -->
+          <div id="floatingDragSelectToolbar" class="absolute top-3 left-14 z-[550] bg-slate-950/95 backdrop-blur-md border border-sky-500/60 rounded-xl px-3 py-2 shadow-2xl flex flex-wrap items-center gap-2 max-w-[92%] sm:max-w-[760px]">
+            <div class="flex items-center gap-1.5">
+              <button id="btnFloatingDragMode" type="button" class="px-2.5 py-1 rounded-lg text-xs font-bold bg-sky-500 text-slate-950 border border-white shadow transition inline-flex items-center gap-1" title="Toggle between Dragging Across Grids to Select vs Dragging to Pan Map">
+                <span>🖱️ Drag-Select Grids: ON</span>
+              </button>
+              <button id="btnFloatingPanMode" type="button" class="px-2 py-1 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition" title="Switch to Pan Map mode (you can still hold Shift + Drag to select grids)">
+                <span>🖐️ Pan Map</span>
+              </button>
+            </div>
+
+            <div class="h-4 w-px bg-slate-700 hidden sm:block"></div>
+
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <span id="floatingDragSelectedBadge" class="px-2 py-0.5 rounded bg-sky-500/20 border border-sky-400/50 font-mono text-[11px] font-bold text-sky-300 max-w-[210px] truncate" title="Drag across hexagons on the map to select multiple grids">
+                Drag across grids to select
+              </span>
+              <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Set Selected:</span>
+              <button type="button" onclick="window.applyColorToSelectedHexGrids('FULLNAV')" class="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition shadow inline-flex items-center gap-1" title="Set all selected hexagons to Green: OK">
+                <span>🟢 Green</span>
+              </button>
+              <button type="button" onclick="window.applyColorToSelectedHexGrids('3NAV')" class="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 transition shadow inline-flex items-center gap-1" title="Set all selected hexagons to Amber: Moderate Degradation">
+                <span>🟡 Amber</span>
+              </button>
+              <button type="button" onclick="window.applyColorToSelectedHexGrids('NONAV')" class="px-2.5 py-1 rounded-lg text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white transition shadow inline-flex items-center gap-1" title="Set all selected hexagons to Red: Highly Degraded">
+                <span>🔴 Red</span>
+              </button>
+              <button type="button" onclick="window.applyColorToSelectedHexGrids('CLEAR')" class="px-2 py-1 rounded-lg text-[11px] font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-600 transition" title="Clear color on selected hexagons (Uncolored)">
+                <span>⚪ Clear</span>
+              </button>
+              <button type="button" onclick="window.clearHexGridSelection()" class="px-1.5 py-1 rounded-lg text-[11px] font-medium bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800 transition" title="Deselect current hexagon selection">
+                <span>✕</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Floating Live Cursor GPS Readout -->
+          <div class="absolute top-3 right-3 z-[500] bg-slate-950/90 backdrop-blur-md border border-slate-700/80 rounded-lg px-3 py-2 shadow-xl pointer-events-none">
+            <div class="text-[10px] font-semibold uppercase tracking-wider text-sky-400">Live Cursor GPS Telemetry</div>
+            <div id="cursorGpsText" class="text-xs font-mono text-white mt-0.5">Hover map to inspect GPS cell</div>
+            <div id="cursorValueText" class="text-[11px] font-mono text-slate-300">Click anywhere to pin GPS location</div>
+          </div>
+
+          <!-- Floating Colorbar & Opacity Control -->
+          <div class="absolute bottom-5 left-3 right-3 sm:right-auto sm:w-96 z-[500] bg-slate-950/90 backdrop-blur-md border border-slate-700/80 rounded-lg p-2.5 shadow-xl">
+            <div class="flex items-center justify-between text-[11px] font-medium text-slate-200 mb-1">
+              <span id="legendTitle">Vertical TEC (TECU)</span>
+              <div class="flex items-center gap-1.5">
+                <label for="sliderOpacity" class="text-[10px] text-slate-400">Grid Opacity:</label>
+                <input id="sliderOpacity" type="range" min="15" max="90" value="58" class="w-20 h-1.5" />
+                <span id="labelOpacity" class="text-[10px] font-mono text-sky-300">58%</span>
+              </div>
+            </div>
+            <div id="legendGradient" class="w-full h-2.5 rounded-full" style="background: linear-gradient(90deg, #1e3a8a 0%, #0284c7 20%, #10b981 40%, #eab308 65%, #f97316 82%, #e11d48 100%);"></div>
+            <div id="legendTicks" class="flex justify-between text-[10px] font-mono text-slate-400 mt-1">
+              <span>0</span>
+              <span>20</span>
+              <span>40</span>
+              <span>60</span>
+              <span>80</span>
+              <span>100+ TECU</span>
+            </div>
+          </div>
+
+          <!-- Floating Map Elements & Hex Status Legend (Bottom-Right) -->
+          <div id="floatingElementsLegend" class="absolute bottom-5 right-3 z-[500] bg-slate-950/92 backdrop-blur-md border border-slate-700/80 rounded-lg p-2.5 shadow-xl max-w-[275px] text-[11px] space-y-1.5">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-1">
+              <span class="font-bold uppercase tracking-wider text-sky-400 text-[10px]">Map Elements &amp; Status Legend</span>
+              <span id="legendTotalHexBadge" class="font-mono text-[10px] text-slate-400">Grid ID: A01–AK60</span>
+            </div>
+            <div class="space-y-1 text-[11px]">
+              <div class="flex items-center justify-between gap-2">
+                <span class="inline-flex items-center gap-1.5 text-emerald-300 font-semibold">
+                  <span class="w-3 h-3 rounded-sm bg-emerald-500 border border-emerald-200 inline-block"></span>
+                  <span>Green: OK</span>
+                </span>
+                <span id="legendCountOk" class="font-mono text-[10px] text-emerald-400">0 hex</span>
+              </div>
+              <div class="flex items-center justify-between gap-2">
+                <span class="inline-flex items-center gap-1.5 text-amber-300 font-semibold">
+                  <span class="w-3 h-3 rounded-sm bg-amber-500 border border-amber-200 inline-block"></span>
+                  <span>Amber: Moderate Degradation</span>
+                </span>
+                <span id="legendCountMod" class="font-mono text-[10px] text-amber-400">0 hex</span>
+              </div>
+              <div class="flex items-center justify-between gap-2">
+                <span class="inline-flex items-center gap-1.5 text-rose-300 font-semibold">
+                  <span class="w-3 h-3 rounded-sm bg-rose-600 border border-rose-200 inline-block"></span>
+                  <span>Red: Highly Degraded</span>
+                </span>
+                <span id="legendCountHigh" class="font-mono text-[10px] text-rose-400">0 hex</span>
+              </div>
+              <div class="flex items-center justify-between gap-2">
+                <span class="inline-flex items-center gap-1.5 text-slate-300">
+                  <span class="w-3 h-3 rounded-sm bg-slate-900 border border-slate-500 inline-block"></span>
+                  <span>Uncolored: Default Grid</span>
+                </span>
+                <span id="legendCountUncolored" class="font-mono text-[10px] text-slate-400">--</span>
+              </div>
+            </div>
+            <div class="pt-1 border-t border-slate-800/90 grid grid-cols-2 gap-x-2 gap-y-1 text-[10px] text-slate-300">
+              <div class="flex items-center gap-1">
+                <span class="px-1 py-0.2 rounded bg-slate-800 border border-sky-400/60 font-mono text-[9px] text-sky-300 font-bold">S47</span>
+                <span>Hex Grid ID</span>
+              </div>
+              <div class="flex items-center gap-1">
+                <span class="w-3.5 h-3.5 rounded-full bg-rose-600 border border-white flex items-center justify-center text-[8px] text-white">⚡</span>
+                <span>GNSS Jammer</span>
+              </div>
+              <div class="flex items-center gap-1">
+                <span class="w-2.5 h-2.5 rounded-full bg-rose-500 border border-white inline-block"></span>
+                <span>GNSS Station</span>
+              </div>
+              <div class="flex items-center gap-1">
+                <span class="px-1 rounded-full bg-sky-500 text-slate-950 font-mono font-bold text-[8px]">#1</span>
+                <span>Pinned GPS</span>
+              </div>
+              <div class="flex items-center gap-1 col-span-2">
+                <span class="w-3 h-3 rounded-full bg-amber-400 text-slate-950 flex items-center justify-center text-[8px] font-bold">☀</span>
+                <span>Sub-Solar Point &amp; Dashed Mag Equator</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Comprehensive Bottom Legend Bar for All Dashboard & Map Elements -->
+        <div class="px-3.5 py-2.5 bg-slate-950/95 border-t border-slate-800 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 text-[11px]">
+          <div class="flex items-center gap-2 bg-slate-900/90 border border-emerald-500/30 rounded-lg px-2.5 py-1.5">
+            <span class="w-3.5 h-3.5 rounded bg-emerald-500 border border-emerald-200 shrink-0"></span>
+            <div class="truncate">
+              <div class="font-bold text-emerald-300 leading-tight">Green: OK</div>
+              <div class="text-[10px] text-slate-400 truncate">Nominal GNSS Lock</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 bg-slate-900/90 border border-amber-500/30 rounded-lg px-2.5 py-1.5">
+            <span class="w-3.5 h-3.5 rounded bg-amber-500 border border-amber-200 shrink-0"></span>
+            <div class="truncate">
+              <div class="font-bold text-amber-300 leading-tight">Amber: Moderate</div>
+              <div class="text-[10px] text-slate-400 truncate">Moderate Degradation</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 bg-slate-900/90 border border-rose-500/30 rounded-lg px-2.5 py-1.5">
+            <span class="w-3.5 h-3.5 rounded bg-rose-600 border border-rose-200 shrink-0"></span>
+            <div class="truncate">
+              <div class="font-bold text-rose-300 leading-tight">Red: Highly Degraded</div>
+              <div class="text-[10px] text-slate-400 truncate">Severe Outage / Jammed</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 bg-slate-900/90 border border-slate-700 rounded-lg px-2.5 py-1.5">
+            <span class="px-1.5 py-0.5 rounded bg-slate-800 border border-sky-400/60 font-mono text-[10px] font-bold text-sky-300 shrink-0">A01</span>
+            <div class="truncate">
+              <div class="font-bold text-white leading-tight">Hex Grid Label</div>
+              <div class="text-[10px] text-slate-400 truncate">Row (A–AK) + Col (01–60)</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 bg-slate-900/90 border border-sky-500/40 rounded-lg px-2.5 py-1.5">
+            <span class="w-3.5 h-3.5 rounded border-2 border-sky-400 bg-sky-500/20 shrink-0"></span>
+            <div class="truncate">
+              <div class="font-bold text-sky-300 leading-tight">Selected Hex</div>
+              <div class="text-[10px] text-slate-400 truncate">Active Target Cell(s)</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 bg-slate-900/90 border border-fuchsia-500/30 rounded-lg px-2.5 py-1.5">
+            <span class="w-4 h-4 rounded-full bg-rose-600 border border-white flex items-center justify-center text-[9px] text-white shrink-0">⚡</span>
+            <div class="truncate">
+              <div class="font-bold text-fuchsia-300 leading-tight">EW Jammer Zone</div>
+              <div class="text-[10px] text-slate-400 truncate">Core &amp; C/N0 Rings</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 bg-slate-900/90 border border-slate-700 rounded-lg px-2.5 py-1.5">
+            <span class="w-3 h-3 rounded-full bg-rose-500 border border-white shrink-0"></span>
+            <div class="truncate">
+              <div class="font-bold text-slate-200 leading-tight">GNSS Station</div>
+              <div class="text-[10px] text-slate-400 truncate">IGS / UNAVCO / RO</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 bg-slate-900/90 border border-slate-700 rounded-lg px-2.5 py-1.5">
+            <span class="px-1.5 py-0.2 rounded-full bg-sky-500 text-slate-950 font-mono text-[10px] font-bold shrink-0">#1</span>
+            <div class="truncate">
+              <div class="font-bold text-sky-200 leading-tight">GPS Waypoint Pin</div>
+              <div class="text-[10px] text-slate-400 truncate">Date &amp; Hour Matched</div>
+            </div>
+          </div>
+        </div>
+        <!-- Historical Archive Date Scrubber & Diurnal Time (UTC Hour) Docked Below Dashboard Map -->
+        <div id="mapBottomTimeScrubberDock" class="px-3.5 py-3 bg-slate-900/95 border-t border-slate-800 space-y-3">
       <!-- Daily Auto-Pull & Full Historical Archive Sync Bar -->
       <div class="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-slate-800/80">
         <div class="flex items-center gap-2 flex-wrap">
@@ -208,7 +667,7 @@
             <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
             <span>Daily Auto-Pull: services.swpc.noaa.gov/products/glotec/geojson_2d_urt.json</span>
           </span>
-          <span id="lastDailyPullText" class="text-[11px] font-mono text-slate-400">Last Sync: Today 06:59 SGT (22:59 UTC) | 607 Historical Days Loaded (2025-02-24 → 2026-10-24)</span>
+          <span id="lastDailyPullText" class="text-[11px] font-mono text-slate-400">Last Sync: Today 06:59 SGT (22:59 UTC) | 607 Historical Days Loaded (2025-02-24 → 2026-10-27)</span>
         </div>
         <div class="flex items-center gap-1.5 flex-wrap">
           <span id="autoPullCountdownBadge" class="px-2 py-1 rounded-md text-[11px] font-mono bg-slate-950 text-emerald-300 border border-emerald-500/30">
@@ -266,7 +725,7 @@
             <button type="button" data-preset-date="2026-10-23" data-preset-hour="0" class="archive-date-btn px-2.5 py-1 rounded-md text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition">
               Oct 23, 2026 (Today Live URT)
             </button>
-            <button type="button" data-preset-date="2026-10-24" data-preset-hour="0" class="archive-date-btn px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 transition">
+            <button type="button" data-preset-date="2026-10-26" data-preset-hour="0" class="archive-date-btn px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 transition">
               Oct 24, 2026 (Latest Daily Sync)
             </button>
           </div>
@@ -291,7 +750,7 @@
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
         <div class="bg-slate-950/60 border border-slate-800/80 rounded-lg p-2.5">
           <div class="flex items-center justify-between text-xs mb-1.5">
-            <label for="sliderDay" class="font-medium text-slate-300">Historical Archive Date Scrubber (2025-02-24 → 2026-10-24)</label>
+            <label for="sliderDay" class="font-medium text-slate-300">Historical Archive Date Scrubber (2025-02-24 → 2026-10-27)</label>
             <span id="labelSliderDay" class="font-mono font-semibold text-sky-400">2026-10-10 (Day 594 of 607)</span>
           </div>
           <input id="sliderDay" type="range" min="1" max="608" step="1" value="594" class="w-full cursor-pointer" />
@@ -319,137 +778,11 @@
           </div>
         </div>
       </div>
-    </section>
-
-    <!-- Map + Right Control Sidebar Grid -->
-    <section class="grid grid-cols-1 lg:grid-cols-12 gap-4">
-
-      <!-- Left 8 Cols: Esri World Imagery Satellite Map -->
-      <div class="lg:col-span-8 bg-slate-900 border border-slate-800 rounded-xl overflow-hidden flex flex-col">
-        <!-- Map Top Control Strip -->
-        <div class="px-3.5 py-2.5 bg-slate-950/80 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2">
-          <div class="flex items-center gap-2 flex-wrap">
-            <span class="text-xs font-semibold text-slate-300">Mode:</span>
-            <select id="selectMetric" aria-label="Map metric layer" class="bg-slate-800 border border-sky-500/50 rounded-lg px-2 py-1 text-xs font-medium text-white focus:outline-none focus:border-sky-500">
-              <option value="nav_status" selected>Hexagon NAV Status (Default: Uncolored)</option>
-              <option value="tec">Vertical TEC Heatmap (TECU = 10¹⁶ el/m²)</option>
-              <option value="jammer_composite">Combined TEC + GNSS Jammer Denial Index</option>
-              <option value="anomaly">30-Day TEC Anomaly (ΔTECU)</option>
-              <option value="delay">GPS L1 Signal Delay (Meters at 1575.42 MHz)</option>
-              <option value="quality">Observation Quality Flag (0–5)</option>
-            </select>
-
-            <span class="text-xs font-semibold text-slate-300">Geometry:</span>
-            <select id="selectGridGeometry" aria-label="Heatmap grid geometry" class="bg-slate-800 border border-sky-500/40 rounded-lg px-2 py-1 text-xs font-medium text-sky-300 focus:outline-none focus:border-sky-500">
-              <option value="hex_fine">Hexagonal Grid Heatmap (5° Honeycomb)</option>
-              <option value="hex_coarse">Hexagonal Grid Heatmap (7.5° Macro Hex)</option>
-              <option value="rect">Rectangular Grid (2.5°×5° Standard)</option>
-            </select>
-
-            <select id="selectBasemap" aria-label="Esri basemap selection" class="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs font-medium text-white focus:outline-none focus:border-sky-500">
-              <option value="esri_sat_labels">Esri Satellite + Boundaries</option>
-              <option value="esri_sat">Esri Pure Satellite</option>
-              <option value="esri_topo">Esri Topographic</option>
-            </select>
-          </div>
-
-          <div class="flex items-center gap-3 flex-wrap">
-            <label class="inline-flex items-center gap-1.5 text-xs text-sky-300 font-medium cursor-pointer">
-              <input id="chkShowGrid" type="checkbox" checked class="rounded border-slate-600 text-sky-500 focus:ring-0" />
-              <span>Hex Heatmap</span>
-            </label>
-            <label class="inline-flex items-center gap-1.5 text-xs text-fuchsia-300 font-semibold cursor-pointer">
-              <input id="chkShowJammers" type="checkbox" checked class="rounded border-slate-600 text-fuchsia-500 focus:ring-0" />
-              <span>GNSS Jammers (EW)</span>
-            </label>
-            <label class="inline-flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer">
-              <input id="chkShowStations" type="checkbox" checked class="rounded border-slate-600 text-sky-500 focus:ring-0" />
-              <span>GNSS Stations</span>
-            </label>
-            <label class="inline-flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer">
-              <input id="chkShowEquator" type="checkbox" checked class="rounded border-slate-600 text-sky-500 focus:ring-0" />
-              <span>Mag Equator</span>
-            </label>
-          </div>
-        </div>
-
-        <!-- Hexagon NAV Status Interactive Painter Strip -->
-        <div class="px-3.5 py-2 bg-slate-900/95 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2">
-          <div class="flex items-center gap-1.5 flex-wrap">
-            <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-300 mr-1">Click Hex to Set Status:</span>
-            <button type="button" data-nav-brush="NONAV" class="nav-brush-btn inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-rose-600 text-white border-2 border-white shadow transition">
-              <span class="w-2.5 h-2.5 rounded-full bg-white"></span>
-              <span>NONAV-RED</span>
-              <span id="countNonav" class="ml-1 px-1.5 py-0.2 rounded bg-black/30 font-mono text-[10px]">0</span>
-            </button>
-            <button type="button" data-nav-brush="3NAV" class="nav-brush-btn inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500/20 hover:bg-amber-500/35 text-amber-300 border border-amber-500/50 transition">
-              <span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
-              <span>3NAV-AMBER</span>
-              <span id="count3nav" class="ml-1 px-1.5 py-0.2 rounded bg-black/30 font-mono text-[10px]">0</span>
-            </button>
-            <button type="button" data-nav-brush="FULLNAV" class="nav-brush-btn inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-500/20 hover:bg-emerald-500/35 text-emerald-300 border border-emerald-500/50 transition">
-              <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
-              <span>FULLNAV-Green</span>
-              <span id="countFullnav" class="ml-1 px-1.5 py-0.2 rounded bg-black/30 font-mono text-[10px]">0</span>
-            </button>
-            <button type="button" data-nav-brush="CLEAR" class="nav-brush-btn inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-600 transition">
-              <span>Uncolored (Eraser)</span>
-            </button>
-          </div>
-
-          <div class="flex items-center gap-2 flex-wrap">
-            <label class="inline-flex items-center gap-1.5 text-[11px] text-emerald-300 font-medium cursor-pointer bg-slate-950/80 px-2 py-1 rounded-lg border border-slate-800" title="When checked, Auto-Classified hexagons dynamically re-evaluate NONAV/3NAV/FULLNAV as you scrub Date & Time">
-              <input id="chkDynamicHexAuto" type="checkbox" class="rounded border-slate-600 text-emerald-500 focus:ring-0" />
-              <span>Sync Hex Status with Date/Time</span>
-            </label>
-            <button id="btnSetPinnedHexStatus" type="button" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 transition">
-              Apply Brush to Pinned Hex
-            </button>
-            <button id="btnAutoClassifyHex" type="button" class="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition" title="Auto-set hexagons based on TEC & Jammer thresholds">
-              Auto-Classify
-            </button>
-            <button id="btnClearAllHexColors" type="button" class="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700 transition">
-              Clear All (Uncolored)
-            </button>
-          </div>
-        </div>
-
-        <!-- Leaflet Map Viewport -->
-        <div class="relative w-full h-[460px] sm:h-[520px]">
-          <div id="mapContainer" class="w-full h-full z-10"></div>
-
-          <!-- Floating Live Cursor GPS Readout -->
-          <div class="absolute top-3 right-3 z-[500] bg-slate-950/90 backdrop-blur-md border border-slate-700/80 rounded-lg px-3 py-2 shadow-xl pointer-events-none">
-            <div class="text-[10px] font-semibold uppercase tracking-wider text-sky-400">Live Cursor GPS Telemetry</div>
-            <div id="cursorGpsText" class="text-xs font-mono text-white mt-0.5">Hover map to inspect GPS cell</div>
-            <div id="cursorValueText" class="text-[11px] font-mono text-slate-300">Click anywhere to pin GPS location</div>
-          </div>
-
-          <!-- Floating Colorbar & Opacity Control -->
-          <div class="absolute bottom-5 left-3 right-3 sm:right-auto sm:w-96 z-[500] bg-slate-950/90 backdrop-blur-md border border-slate-700/80 rounded-lg p-2.5 shadow-xl">
-            <div class="flex items-center justify-between text-[11px] font-medium text-slate-200 mb-1">
-              <span id="legendTitle">Vertical TEC (TECU)</span>
-              <div class="flex items-center gap-1.5">
-                <label for="sliderOpacity" class="text-[10px] text-slate-400">Grid Opacity:</label>
-                <input id="sliderOpacity" type="range" min="15" max="90" value="58" class="w-20 h-1.5" />
-                <span id="labelOpacity" class="text-[10px] font-mono text-sky-300">58%</span>
-              </div>
-            </div>
-            <div id="legendGradient" class="w-full h-2.5 rounded-full" style="background: linear-gradient(90deg, #1e3a8a 0%, #0284c7 20%, #10b981 40%, #eab308 65%, #f97316 82%, #e11d48 100%);"></div>
-            <div id="legendTicks" class="flex justify-between text-[10px] font-mono text-slate-400 mt-1">
-              <span>0</span>
-              <span>20</span>
-              <span>40</span>
-              <span>60</span>
-              <span>80</span>
-              <span>100+ TECU</span>
-            </div>
-          </div>
         </div>
       </div>
 
-      <!-- Right 4 Cols: GPS Coordinate Finder, Station Presets & Cell Inspector -->
-      <div class="lg:col-span-4 flex flex-col gap-4">
+      <!-- Control Deck below Extended Map (3 Columns in Extended Mode, or 4-Col Right Sidebar in Split Mode) -->
+      <div id="sidebarControlsColumn" class="lg:col-span-12 grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
 
         <!-- Multi-Pin GPS Coordinate, Date & Time Manager Card -->
         <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
@@ -472,7 +805,7 @@
           <div class="grid grid-cols-12 gap-2">
             <div class="col-span-5">
               <label for="inputPinDate" class="block text-[10px] font-medium text-slate-400 mb-1">Pin Date (2025-02-24+)</label>
-              <input id="inputPinDate" type="date" min="2025-02-24" max="2026-10-24" value="2026-10-10" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-sky-500" />
+              <input id="inputPinDate" type="date" min="2025-02-24" max="2026-10-27" value="2026-10-10" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-sky-500" />
             </div>
             <div class="col-span-3">
               <label for="inputPinTime" class="block text-[10px] font-medium text-slate-400 mb-1" title="Automatically rounds to nearest UTC hour">Time (Nearest Hr)</label>
@@ -584,24 +917,60 @@
               <h3 class="text-sm font-bold text-white">Selected Hexagon &amp; 3D GNSS Profile</h3>
               <span id="cellBoundsBadge" class="text-[11px] font-mono text-sky-400">Hex: Uncolored</span>
             </div>
-            <div class="mt-2 bg-slate-950/80 border border-slate-800 rounded-lg p-2">
-              <div class="flex items-center justify-between text-[11px] text-slate-400 mb-1.5">
-                <span>Set Selected Hexagon NAV Status:</span>
+            <div class="mt-2 bg-slate-950/80 border border-slate-800 rounded-lg p-2 space-y-1.5">
+              <div class="flex items-center justify-between text-[11px] text-slate-400">
+                <span>Selected Hex Label &amp; Status:</span>
                 <span id="pinnedHexStatusBadge" class="font-mono font-bold text-slate-300">UNCOLORED</span>
               </div>
-              <div class="grid grid-cols-4 gap-1.5">
-                <button type="button" data-pin-set-nav="NONAV" class="pin-nav-btn py-1 px-1.5 rounded text-[11px] font-bold bg-rose-600/25 hover:bg-rose-600 text-rose-200 hover:text-white border border-rose-500/50 transition">
-                  NONAV-RED
+              <div class="grid grid-cols-2 gap-1.5">
+                <button type="button" data-pin-set-nav="FULLNAV" class="pin-nav-btn py-1 px-2 rounded text-[11px] font-bold bg-emerald-500/25 hover:bg-emerald-500 text-emerald-200 hover:text-slate-950 border border-emerald-500/50 transition text-left">
+                  🟢 Green: OK
                 </button>
-                <button type="button" data-pin-set-nav="3NAV" class="pin-nav-btn py-1 px-1.5 rounded text-[11px] font-bold bg-amber-500/25 hover:bg-amber-500 text-amber-200 hover:text-slate-950 border border-amber-500/50 transition">
-                  3NAV-AMBER
+                <button type="button" data-pin-set-nav="3NAV" class="pin-nav-btn py-1 px-2 rounded text-[11px] font-bold bg-amber-500/25 hover:bg-amber-500 text-amber-200 hover:text-slate-950 border border-amber-500/50 transition text-left">
+                  🟡 Amber: Moderate Degradation
                 </button>
-                <button type="button" data-pin-set-nav="FULLNAV" class="pin-nav-btn py-1 px-1.5 rounded text-[11px] font-bold bg-emerald-500/25 hover:bg-emerald-500 text-emerald-200 hover:text-slate-950 border border-emerald-500/50 transition">
-                  FULLNAV-Green
+                <button type="button" data-pin-set-nav="NONAV" class="pin-nav-btn py-1 px-2 rounded text-[11px] font-bold bg-rose-600/25 hover:bg-rose-600 text-rose-200 hover:text-white border border-rose-500/50 transition text-left">
+                  🔴 Red: Highly Degraded
                 </button>
-                <button type="button" data-pin-set-nav="CLEAR" class="pin-nav-btn py-1 px-1.5 rounded text-[11px] font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition">
-                  Uncolored
+                <button type="button" data-pin-set-nav="CLEAR" class="pin-nav-btn py-1 px-2 rounded text-[11px] font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition text-left">
+                  ⚪ Uncolored (Default)
                 </button>
+              </div>
+              <div class="pt-1.5 mt-1.5 border-t border-slate-800/80 flex items-center justify-between gap-1.5">
+                <button id="btnSidebarSaveHexGridPermanently" type="button" class="flex-1 py-1 px-2 rounded text-[11px] font-bold bg-cyan-500 hover:bg-cyan-400 text-slate-950 transition shadow text-center">
+                  💾 Save Grid Permanently
+                </button>
+                <button id="btnSidebarExportPermanentHtml" type="button" class="py-1 px-2 rounded text-[11px] font-semibold bg-indigo-500/25 hover:bg-indigo-500/40 text-indigo-200 border border-indigo-400/50 transition" title="Save standalone HTML with current hexagonal grid baked in">
+                  📥 HTML
+                </button>
+              </div>
+              <div class="flex items-center justify-between text-[10px] font-mono text-slate-400 pt-0.5">
+                <span>Permanent Storage:</span>
+                <span id="sidebarHexSaveStatusText" class="text-emerald-300 font-semibold">Auto-Save Active</span>
+              </div>
+              <!-- Per-Hexagon Multi-Day Green / Amber / Red Count Breakdown -->
+              <div id="selectedHexLayerCountsPanel" class="pt-1.5 mt-1.5 border-t border-slate-800/90 space-y-1">
+                <div class="flex items-center justify-between text-[10px] font-semibold text-amber-300">
+                  <span>Multi-Day Layer Counts (1 Oct–27 Oct):</span>
+                  <span id="selectedHexWinnerBadge" class="font-mono font-bold text-emerald-300">Highest: --</span>
+                </div>
+                <div class="grid grid-cols-3 gap-1 text-[10px] font-mono text-center">
+                  <div class="bg-emerald-950/60 border border-emerald-500/40 rounded py-1 px-1">
+                    <div class="text-emerald-300 font-bold" id="selHexCountGreen">0</div>
+                    <div class="text-[9px] text-slate-400">🟢 Green</div>
+                  </div>
+                  <div class="bg-amber-950/60 border border-amber-500/40 rounded py-1 px-1">
+                    <div class="text-amber-300 font-bold" id="selHexCountAmber">0</div>
+                    <div class="text-[9px] text-slate-400">🟡 Amber</div>
+                  </div>
+                  <div class="bg-rose-950/60 border border-rose-500/40 rounded py-1 px-1">
+                    <div class="text-rose-300 font-bold" id="selHexCountRed">0</div>
+                    <div class="text-[9px] text-slate-400">🔴 Red</div>
+                  </div>
+                </div>
+                <div id="selHexLayerDaysList" class="text-[10px] font-mono text-slate-400 truncate" title="Days where this hexagon was colored">
+                  Click hexagons on 1 Oct, 2 Oct, 3 Oct... to tally counts
+                </div>
               </div>
             </div>
 
@@ -817,7 +1186,7 @@
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 text-xs">
         <div class="bg-slate-950/80 border border-slate-800 rounded-lg p-2.5">
           <div class="text-[10px] font-mono uppercase text-cyan-400">1. Latest Assimilation Window</div>
-          <div id="digestTimestampVal" class="font-mono font-bold text-sm text-white mt-0.5">2026-10-24 01:00 UTC</div>
+          <div id="digestTimestampVal" class="font-mono font-bold text-sm text-white mt-0.5">2026-10-27 01:00 UTC</div>
           <div id="digestSourceDetail" class="text-[11px] text-slate-400 mt-0.5">SWPC geojson_2d_urt.json + COSMIC-2 RO</div>
         </div>
         <div class="bg-slate-950/80 border border-slate-800 rounded-lg p-2.5">
@@ -988,7 +1357,7 @@
     // =========================================================================
     // Build Full Available Historical GloTEC Archive: 2025-02-24 to 2026-10-23 (607 days)
     const ARCHIVE_START_UTC = Date.UTC(2025, 1, 24); // 2025-02-24
-    const MIN_ARCHIVE_END_UTC = Date.UTC(2026, 9, 24); // 2026-10-24
+    const MIN_ARCHIVE_END_UTC = Date.UTC(2026, 9, 26); // 2026-10-27
     const nowUtcFloor = Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate());
     const EFFECTIVE_END_UTC = Math.max(MIN_ARCHIVE_END_UTC, nowUtcFloor);
     const TOTAL_ARCHIVE_DAYS = Math.round((EFFECTIVE_END_UTC - ARCHIVE_START_UTC) / 86400000) + 1;
@@ -1005,7 +1374,7 @@
       '2026-10-21': { kp: 5.0, scale: 'G1 Minor',      f107: 172, stormFactor: 1.15, postStormDepletion: 0.0,   summary: 'SWPC G1 Minor geomagnetic storm conditions following coronal hole high-speed stream.' },
       '2026-10-22': { kp: 5.0, scale: 'G1 Minor',      f107: 170, stormFactor: 1.13, postStormDepletion: 0.0,   summary: 'Persistent G1 Minor geomagnetic disturbance; moderate equatorial afternoon TEC.' },
       '2026-10-23': { kp: 4.0, scale: 'Active (G0)',   f107: 168, stormFactor: 1.06, postStormDepletion: 0.0,   summary: 'SWPC Active geomagnetic conditions (Kp 4, Ap 15); moderate equatorial ionization.' },
-      '2026-10-24': { kp: 3.0, scale: 'Unsettled (G0)', f107: 165, stormFactor: 1.02, postStormDepletion: 0.0,   summary: 'Daily Automated Pull (2026-10-24 00:35 UTC): Quiet/Unsettled (G-none, Kp 3, Ap 10, R1-R2 20%) from services.swpc.noaa.gov/products/glotec/geojson_2d_urt.json.' }
+      '2026-10-27': { kp: 3.0, scale: 'Unsettled (G0)', f107: 165, stormFactor: 1.02, postStormDepletion: 0.0,   summary: 'Daily Automated Pull (2026-10-27 00:35 UTC): Quiet/Unsettled (G-none, Kp 3, Ap 10, R1-R2 20%) from services.swpc.noaa.gov/products/glotec/geojson_2d_urt.json.' }
     };
 
     const OCT_2026_DAYS = [
@@ -1142,10 +1511,26 @@
     // 2. APPLICATION STATE
     // =========================================================================
     const NAV_STATUS_CONFIG = {
-      NONAV:   { label: 'NONAV-RED',     color: '#ef4444', border: '#fecaca', badgeClass: 'text-rose-400' },
-      '3NAV':  { label: '3NAV-AMBER',    color: '#f59e0b', border: '#fde68a', badgeClass: 'text-amber-400' },
-      FULLNAV: { label: 'FULLNAV-Green', color: '#10b981', border: '#a7f3d0', badgeClass: 'text-emerald-400' }
+      FULLNAV: { code: 'FULLNAV', label: 'Green: OK',                   shortLabel: 'Green: OK',         legacyLabel: 'FULLNAV-Green', color: '#10b981', border: '#a7f3d0', badgeClass: 'text-emerald-400' },
+      '3NAV':  { code: '3NAV',    label: 'Amber: Moderate Degradation', shortLabel: 'Amber: Moderate',   legacyLabel: '3NAV-AMBER',    color: '#f59e0b', border: '#fde68a', badgeClass: 'text-amber-400' },
+      NONAV:   { code: 'NONAV',   label: 'Red: Highly Degraded',        shortLabel: 'Red: Degraded',     legacyLabel: 'NONAV-RED',     color: '#ef4444', border: '#fecaca', badgeClass: 'text-rose-400' }
     };
+
+    function normalizeNavStatusInput(rawStatus) {
+      if (!rawStatus) return 'CLEAR';
+      const s = String(rawStatus).toUpperCase().trim();
+      if (s === 'CLEAR' || s === 'UNCOLORED' || s === 'NONE' || s === 'DEFAULT') return 'CLEAR';
+      if (s.includes('GREEN') || s === 'OK' || s.includes('FULLNAV')) return 'FULLNAV';
+      if (s.includes('AMBER') || s.includes('MODERATE') || s.includes('3NAV') || s.includes('YELLOW')) return '3NAV';
+      if (s.includes('RED') || s.includes('HIGHLY') || s.includes('DEGRADED') || s.includes('NONAV')) return 'NONAV';
+      return 'CLEAR';
+    }
+
+    /*__BAKED_HEX_GRID_START__*/
+    window.__BAKED_HEX_GRID_STATE__ = null;
+    /*__BAKED_HEX_GRID_END__*/
+
+    const PERMANENT_HEX_STORAGE_KEY = 'glotec_permanent_hex_grid_v1';
 
     const state = {
       archiveWindow: 'all_607', // 'all_607' (Feb 24, 2025 - Oct 23, 2026) | 'oct_2026' (Oct 1 - Oct 23, 2026)
@@ -1159,6 +1544,17 @@
       basemap: 'esri_sat_labels',
       opacity: 0.65,
       showGrid: true,
+      showHexLabels: true,
+      multiSelectHexMode: false,
+      dragSelectGridsMode: true, // Default ON: allows dragging across hexagons on the map to select multiple grids
+      dragGridStyle: 'sweep',    // 'sweep' (cursor path across grids) | 'box' (rectangle marquee)
+      isDraggingHexSelection: false,
+      dragJustFinishedTs: 0,
+      dragStartLatLng: null,
+      dragLastLatLng: null,
+      dragBoxLayer: null,
+      hexPolyByKey: {},
+      selectedHexKeys: [],
       showJammers: true,
       showStations: true,
       showEquator: true,
@@ -1166,6 +1562,15 @@
       activeNavBrush: 'NONAV', // 'NONAV' | '3NAV' | 'FULLNAV' | 'CLEAR'
       hexNavStatusMap: {},     // Keyed by cellId -> 'NONAV' | '3NAV' | 'FULLNAV' (empty by default = all hexagons uncolored)
       manualHexNavOverrides: {}, // Explicit per-hexagon user clicks always override auto-classification
+      hexLabelStatusMap: {},   // Keyed by human-readable Hex ID (e.g. 'S47') -> 'NONAV' | '3NAV' | 'FULLNAV'
+      dailyHexLayers: {},      // Keyed by ISO date ('2026-10-01'..'2026-10-27') -> { [hexLabel]: 'FULLNAV' | '3NAV' | 'NONAV' }
+      customLayerDates: [],    // Additional user-added date strings
+      activeMapLayerMode: 'day_layer', // 'day_layer' (1 Oct, 2 Oct, 3 Oct...) | 'highest_count' (Highest Count of Green/Amber/Red)
+      highestCountScope: 'saved_only', // 'saved_only' | 'all_oct_auto'
+      highestTieBreak: 'severity',     // 'severity' (Red > Amber > Green) | 'green_first' (Green > Amber > Red)
+      autoSaveHexGrid: true,   // Automatically save hex grid changes to localStorage
+      hasRestoredPermanentHexGrid: false, // True when a saved grid was restored from localStorage or baked HTML
+      lastPermanentSaveTime: null,
       dynamicHexAutoClassify: false, // When true, hexagons dynamically re-compute NONAV/3NAV/FULLNAV on Date/Time change
       liveSwpcCells: null,     // Stores live SWPC geojson_2d_urt.json spatial grid
       selectedHexKey: null,
@@ -1446,6 +1851,7 @@
     let baseTileLayer;
     let labelOverlayLayer;
     let gridLayerGroup;
+    let hexLabelLayerGroup;
     let stationLayerGroup;
     let jammerLayerGroup;
     let equatorLayerGroup;
@@ -1454,21 +1860,136 @@
 
     function initMap() {
       map = L.map('mapContainer', {
-        center: [12.0, 20.0],
-        zoom: 2,
-        minZoom: 2,
+        center: [12.0, 25.0],
+        zoom: 2.5,
+        minZoom: 1.75,
         maxZoom: 12,
+        zoomSnap: 0.25,
+        zoomDelta: 0.5,
         worldCopyJump: true,
         preferCanvas: false
       });
 
+      // Automatically resize Leaflet tiles & re-center hex labels whenever the extended map viewport is resized
+      const mapWrap = document.getElementById('mapViewportWrapper');
+      if (mapWrap && typeof ResizeObserver !== 'undefined') {
+        const ro = new ResizeObserver(() => {
+          if (map) {
+            map.invalidateSize({ animate: false });
+            renderHexGridLabelsOnly();
+          }
+        });
+        ro.observe(mapWrap);
+      }
+
       updateBasemapLayer();
 
       gridLayerGroup = L.layerGroup().addTo(map);
+      hexLabelLayerGroup = L.layerGroup().addTo(map);
       equatorLayerGroup = L.layerGroup().addTo(map);
       jammerLayerGroup = L.layerGroup().addTo(map);
       stationLayerGroup = L.layerGroup().addTo(map);
       multiPinLayerGroup = L.layerGroup().addTo(map);
+
+      map.on('zoomend moveend', () => {
+        renderHexGridLabelsOnly();
+      });
+
+      // Configure map dragging based on dragSelectGridsMode
+      if (state.dragSelectGridsMode && map.dragging) {
+        map.dragging.disable();
+        map.getContainer().style.cursor = 'crosshair';
+      }
+
+      // Helper to start drag-selecting hexagons
+      map.on('mousedown', (e) => {
+        const domEv = e.originalEvent;
+        if (domEv && domEv.button !== undefined && domEv.button !== 0) return; // left click only
+        const wantDragSelect = state.dragSelectGridsMode || (domEv && domEv.shiftKey);
+        if (!wantDragSelect || !state.showGrid) return;
+
+        if (map.dragging) map.dragging.disable();
+        state.isDraggingHexSelection = true;
+        state.dragStartLatLng = e.latlng;
+        state.dragLastLatLng = e.latlng;
+
+        const appendMode = state.multiSelectHexMode || (domEv && (domEv.ctrlKey || domEv.metaKey));
+        if (!appendMode) {
+          // Reset previous selection highlights visually before starting new drag sweep
+          (state.selectedHexKeys || []).forEach((k) => {
+            const oldPoly = state.hexPolyByKey && state.hexPolyByKey[k];
+            if (oldPoly && oldPoly._defaultStyle) {
+              oldPoly.setStyle(oldPoly._defaultStyle);
+            }
+          });
+          state.selectedHexKeys = [];
+        }
+        state._dragBaseKeys = [...(state.selectedHexKeys || [])];
+
+        const startCell = findHexCellContainingOrNearest(e.latlng.lat, e.latlng.lng);
+        if (startCell) {
+          addHexCellToDragSelection(startCell);
+        }
+        updateDragSelectionUI();
+      });
+
+      map.on('mousemove', (e) => {
+        if (!state.isDraggingHexSelection) return;
+        const curLatLng = e.latlng;
+        if (state.dragGridStyle === 'box' && state.dragStartLatLng) {
+          const bounds = L.latLngBounds(state.dragStartLatLng, curLatLng);
+          if (!state.dragBoxLayer) {
+            state.dragBoxLayer = L.rectangle(bounds, {
+              color: '#38bdf8',
+              weight: 2,
+              dashArray: '4, 4',
+              fillColor: '#38bdf8',
+              fillOpacity: 0.15,
+              interactive: false
+            }).addTo(map);
+          } else {
+            state.dragBoxLayer.setBounds(bounds);
+          }
+          selectHexCellsInBoundingBox(bounds);
+        } else {
+          // Sweep Path mode: sample intermediate points between dragLastLatLng and curLatLng so fast drags never skip a hexagon
+          const prev = state.dragLastLatLng || curLatLng;
+          const steps = 6;
+          for (let s = 1; s <= steps; s++) {
+            const t = s / steps;
+            const iLat = prev.lat + (curLatLng.lat - prev.lat) * t;
+            const iLng = prev.lng + (curLatLng.lng - prev.lng) * t;
+            const c = findHexCellContainingOrNearest(iLat, iLng);
+            if (c) addHexCellToDragSelection(c);
+          }
+          state.dragLastLatLng = curLatLng;
+        }
+        updateDragSelectionUI();
+      });
+
+      const finishHexDragSelection = () => {
+        if (!state.isDraggingHexSelection) return;
+        state.isDraggingHexSelection = false;
+        state.dragJustFinishedTs = Date.now();
+        if (state.dragBoxLayer && map) {
+          map.removeLayer(state.dragBoxLayer);
+          state.dragBoxLayer = null;
+        }
+        if (!state.dragSelectGridsMode && map && map.dragging) {
+          map.dragging.enable();
+        }
+        if (state.selectedHexKeys && state.selectedHexKeys.length > 0) {
+          state.selectedHexKey = state.selectedHexKeys[0];
+          renderHexGridLabelsOnly();
+          updateDragSelectionUI();
+          const labels = state.selectedHexKeys.map(k => getCellByKeyOrLabel(k)?.label).filter(Boolean);
+          const preview = labels.length <= 6 ? labels.join(', ') : `${labels.slice(0, 5).join(', ')}... (${labels.length} grids)`;
+          showToast(`Selected ${labels.length} grid(s) [${preview}] — Click 🟢 Green, 🟡 Amber, or 🔴 Red to change color!`);
+        }
+      };
+
+      map.on('mouseup', finishHexDragSelection);
+      window.addEventListener('mouseup', finishHexDragSelection);
 
       // Map Mouse Move -> Live GPS Readout
       map.on('mousemove', (e) => {
@@ -1543,24 +2064,62 @@
       return pts;
     }
 
+    function rowIdxToLetters(idx) {
+      // 0 -> A, 25 -> Z, 26 -> AA, 27 -> AB, ...
+      let n = idx;
+      let s = '';
+      while (n >= 0) {
+        s = String.fromCharCode((n % 26) + 65) + s;
+        n = Math.floor(n / 26) - 1;
+      }
+      return s;
+    }
+
+    let _cachedHexCellsGeom = null;
+    let _cachedHexCellsList = null;
+    let _cachedHexByKey = {};
+    let _cachedHexByLabel = {};
+
     function getAllHexCells() {
+      if (_cachedHexCellsGeom === state.gridGeometry && _cachedHexCellsList) {
+        return _cachedHexCellsList;
+      }
       const cells = [];
+      _cachedHexByKey = {};
+      _cachedHexByLabel = {};
+
       if (state.gridGeometry === 'rect') {
         const latStep = 5.0;
         const lonStep = 5.0;
-        for (let lat = -85; lat < 85; lat += latStep) {
+        const lats = [];
+        for (let lat = -85; lat < 85; lat += latStep) lats.push(lat);
+        // Order rows North-to-South so Row A is northernmost
+        lats.reverse();
+        lats.forEach((lat, rIdx) => {
+          const rowAlpha = rowIdxToLetters(rIdx);
+          let cIdx = 1;
           for (let lon = -180; lon < 180; lon += lonStep) {
             const cLat = Number((lat + latStep / 2).toFixed(2));
             const cLon = Number((lon + lonStep / 2).toFixed(2));
-            cells.push({
-              key: `R_${cLat}_${cLon}`,
+            const label = `${rowAlpha}${String(cIdx).padStart(2, '0')}`;
+            const key = `R_${cLat}_${cLon}`;
+            const cellObj = {
+              key,
+              label,
+              rowAlpha,
+              rowIdx: rIdx,
+              colIdx: cIdx,
               cLat,
               cLon,
               isRect: true,
               bounds: [[lat, lon], [lat + latStep, lon + lonStep]]
-            });
+            };
+            cells.push(cellObj);
+            _cachedHexByKey[key] = cellObj;
+            _cachedHexByLabel[label] = cellObj;
+            cIdx++;
           }
-        }
+        });
       } else {
         const isCoarse = state.gridGeometry === 'hex_coarse';
         const hexRadiusLat = isCoarse ? 4.4 : 3.0;
@@ -1568,24 +2127,106 @@
         const rowStepLat = hexRadiusLat * 1.5;
         const colStepLon = hexRadiusLon * Math.sqrt(3);
 
-        let rowIndex = 0;
+        const rawRows = [];
+        let rCounter = 0;
         for (let rawLat = -81; rawLat <= 81; rawLat += rowStepLat) {
-          const lonOffset = (rowIndex % 2 === 1) ? (colStepLon / 2) : 0;
+          rawRows.push({ rawLat, isOdd: (rCounter % 2 === 1) });
+          rCounter++;
+        }
+        // Order North to South so Row A is at the top (+81°N) and Row AK/Y is at the bottom (-81°S)
+        rawRows.reverse();
+
+        rawRows.forEach((rInfo, rIdx) => {
+          const rowAlpha = rowIdxToLetters(rIdx);
+          const lonOffset = rInfo.isOdd ? (colStepLon / 2) : 0;
+          let cIdx = 1;
           for (let rawLon = -177 + lonOffset; rawLon <= 177; rawLon += colStepLon) {
-            const cLat = Number(rawLat.toFixed(2));
+            const cLat = Number(rInfo.rawLat.toFixed(2));
             const cLon = Number(rawLon.toFixed(2));
-            cells.push({
-              key: `H_${state.gridGeometry}_${cLat}_${cLon}`,
+            const label = `${rowAlpha}${String(cIdx).padStart(2, '0')}`;
+            const key = `H_${state.gridGeometry}_${cLat}_${cLon}`;
+            const cellObj = {
+              key,
+              label,
+              rowAlpha,
+              rowIdx: rIdx,
+              colIdx: cIdx,
               cLat,
               cLon,
               isRect: false,
               vertices: createHexagonLatLngs(cLat, cLon, hexRadiusLat * 0.98, hexRadiusLon * 0.98)
-            });
+            };
+            cells.push(cellObj);
+            _cachedHexByKey[key] = cellObj;
+            _cachedHexByLabel[label] = cellObj;
+            cIdx++;
           }
-          rowIndex++;
-        }
+        });
       }
+      _cachedHexCellsGeom = state.gridGeometry;
+      _cachedHexCellsList = cells;
       return cells;
+    }
+
+    function getCellByKeyOrLabel(idOrLabel) {
+      if (!idOrLabel) return null;
+      getAllHexCells();
+      const raw = String(idOrLabel).trim();
+      if (_cachedHexByKey[raw]) return _cachedHexByKey[raw];
+      const clean = raw.toUpperCase().replace(/^H[-_]/, '');
+      if (_cachedHexByLabel[clean]) return _cachedHexByLabel[clean];
+      // Also support unpadded column e.g. A1 -> A01
+      const m = clean.match(/^([A-Z]+)(\d+)$/);
+      if (m) {
+        const padded = `${m[1]}${String(parseInt(m[2], 10)).padStart(2, '0')}`;
+        if (_cachedHexByLabel[padded]) return _cachedHexByLabel[padded];
+      }
+      return null;
+    }
+
+    function parseHexLabelSelectionString(inputStr) {
+      const cells = getAllHexCells();
+      if (!inputStr || !String(inputStr).trim()) return [];
+      const tokens = String(inputStr).toUpperCase().split(/[,;\s]+/).filter(Boolean);
+      const matchedMap = {};
+
+      tokens.forEach((tok) => {
+        const cleanTok = tok.replace(/^H[-_]/, '');
+        if (cleanTok === 'ALL' || cleanTok === '*') {
+          cells.forEach(c => { matchedMap[c.key] = c; });
+          return;
+        }
+        // Range e.g. S45-S50 or A01:B05
+        const rangeParts = cleanTok.split(/[-:]/);
+        if (rangeParts.length === 2) {
+          const cStart = getCellByKeyOrLabel(rangeParts[0]);
+          const cEnd = getCellByKeyOrLabel(rangeParts[1]);
+          if (cStart && cEnd) {
+            const rMin = Math.min(cStart.rowIdx, cEnd.rowIdx);
+            const rMax = Math.max(cStart.rowIdx, cEnd.rowIdx);
+            const colMin = Math.min(cStart.colIdx, cEnd.colIdx);
+            const colMax = Math.max(cStart.colIdx, cEnd.colIdx);
+            cells.forEach((cell) => {
+              if (cell.rowIdx >= rMin && cell.rowIdx <= rMax && cell.colIdx >= colMin && cell.colIdx <= colMax) {
+                matchedMap[cell.key] = cell;
+              }
+            });
+            return;
+          }
+        }
+        // Row wildcard e.g. S*
+        const rowWild = cleanTok.match(/^([A-Z]+)\*$/);
+        if (rowWild) {
+          cells.forEach((cell) => {
+            if (cell.rowAlpha === rowWild[1]) matchedMap[cell.key] = cell;
+          });
+          return;
+        }
+        const single = getCellByKeyOrLabel(cleanTok);
+        if (single) matchedMap[single.key] = single;
+      });
+
+      return Object.values(matchedMap);
     }
 
     function findNearestCellKey(lat, lon) {
@@ -1603,34 +2244,743 @@
       return best;
     }
 
-    function setHexNavStatus(cellKey, statusCode) {
-      if (!cellKey) return;
-      if (!statusCode || statusCode === 'CLEAR') {
-        delete state.hexNavStatusMap[cellKey];
-        state.manualHexNavOverrides[cellKey] = 'CLEAR';
-      } else {
-        state.hexNavStatusMap[cellKey] = statusCode;
-        state.manualHexNavOverrides[cellKey] = statusCode;
+    function getActiveLayerIsoDate() {
+      const dm = getDayMetaByFlexIndex(state.day);
+      return dm ? dm.date : '2026-10-10';
+    }
+
+    function formatShortOctLabel(isoDate) {
+      if (!isoDate) return '';
+      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      const parts = String(isoDate).split('-');
+      if (parts.length === 3) {
+        const mIdx = parseInt(parts[1], 10) - 1;
+        const dNum = parseInt(parts[2], 10);
+        return `${dNum} ${months[mIdx] || parts[1]}`;
       }
+      return isoDate;
+    }
+
+    function getAllConfiguredLayerDates() {
+      const octDates = [];
+      for (let d = 1; d <= 27; d++) {
+        octDates.push(`2026-10-${String(d).padStart(2, '0')}`);
+      }
+      const extra = Array.isArray(state.customLayerDates) ? state.customLayerDates : [];
+      const existingKeys = Object.keys(state.dailyHexLayers || {});
+      const merged = Array.from(new Set([...octDates, ...extra, ...existingKeys])).sort();
+      return merged;
+    }
+
+    function syncActiveDayLayerToMapState(isoDate) {
+      const targetDate = isoDate || getActiveLayerIsoDate();
+      if (!state.dailyHexLayers) state.dailyHexLayers = {};
+      const dayMap = state.dailyHexLayers[targetDate] || {};
+      state.hexNavStatusMap = {};
+      state.hexLabelStatusMap = {};
+      state.manualHexNavOverrides = {};
+      Object.entries(dayMap).forEach(([lbl, st]) => {
+        const cell = getCellByKeyOrLabel(lbl);
+        if (cell && NAV_STATUS_CONFIG[st]) {
+          state.hexNavStatusMap[cell.key] = st;
+          state.hexLabelStatusMap[cell.label] = st;
+          state.manualHexNavOverrides[cell.key] = st;
+        }
+      });
       updateNavCountersUI();
     }
+
+    function seedDefaultOctLayersIfEmpty() {
+      if (!state.dailyHexLayers) state.dailyHexLayers = {};
+      const hasAny = Object.values(state.dailyHexLayers).some(m => m && Object.keys(m).length > 0);
+      if (hasAny) return;
+      // Seed a clean, realistic set of sample hexagons on 1 Oct, 2 Oct, 3 Oct, 10 Oct, 11 Oct so the user immediately sees 1 Oct, 2 Oct, 3 Oct layers and Highest Count in action!
+      const sampleSeeds = {
+        '2026-10-01': { S47: 'FULLNAV', S48: 'FULLNAV', R47: 'FULLNAV', M36: 'NONAV', N36: '3NAV', K34: '3NAV' },
+        '2026-10-02': { S47: 'FULLNAV', S48: '3NAV',    R47: 'FULLNAV', M36: 'NONAV', N36: 'NONAV', K34: '3NAV' },
+        '2026-10-03': { S47: '3NAV',    S48: '3NAV',    R47: 'FULLNAV', M36: 'NONAV', N36: '3NAV', K34: 'FULLNAV' },
+        '2026-10-04': { S47: 'FULLNAV', S48: 'FULLNAV', R47: 'FULLNAV', M36: '3NAV',  N36: 'FULLNAV', K34: 'FULLNAV' },
+        '2026-10-10': { S47: '3NAV',    S48: 'NONAV',   R47: '3NAV',    M36: 'NONAV', N36: 'NONAV', K34: 'NONAV' }
+      };
+      Object.entries(sampleSeeds).forEach(([dt, mapObj]) => {
+        state.dailyHexLayers[dt] = { ...mapObj };
+      });
+    }
+
+    function computeHexHighestCountSummary() {
+      const cells = getAllHexCells();
+      const layerDates = getAllConfiguredLayerDates();
+      const scope = state.highestCountScope || 'saved_only';
+      const tieBreak = state.highestTieBreak || 'severity';
+      const summaryByKey = {};
+      let totalGreenWinners = 0;
+      let totalAmberWinners = 0;
+      let totalRedWinners = 0;
+
+      // Determine which dates are active for aggregation
+      const activeDates = scope === 'all_oct_auto'
+        ? layerDates
+        : layerDates.filter(dt => state.dailyHexLayers[dt] && Object.keys(state.dailyHexLayers[dt]).length > 0);
+
+      cells.forEach((cell) => {
+        let greenCount = 0;
+        let amberCount = 0;
+        let redCount = 0;
+        const greenDays = [];
+        const amberDays = [];
+        const redDays = [];
+
+        activeDates.forEach((dt) => {
+          const dayLayer = state.dailyHexLayers[dt];
+          let st = dayLayer ? dayLayer[cell.label] : undefined;
+          if (!st && scope === 'all_oct_auto') {
+            const dIdx = FULL_ARCHIVE_DAYS.findIndex(x => x.date === dt);
+            const dayNum = dIdx >= 0 ? dIdx + 1 : state.day;
+            const dVal = computeGloTecAtGps(cell.cLat, cell.cLon, dayNum, state.hour);
+            if (dVal.jammerDb >= 8.0 || dVal.tec >= 62.0) st = 'NONAV';
+            else if (dVal.jammerDb >= 2.0 || dVal.tec >= 40.0) st = '3NAV';
+            else st = 'FULLNAV';
+          }
+          if (st === 'FULLNAV') {
+            greenCount++;
+            greenDays.push(formatShortOctLabel(dt));
+          } else if (st === '3NAV') {
+            amberCount++;
+            amberDays.push(formatShortOctLabel(dt));
+          } else if (st === 'NONAV') {
+            redCount++;
+            redDays.push(formatShortOctLabel(dt));
+          }
+        });
+
+        const totalCount = greenCount + amberCount + redCount;
+        let winnerStatus = null;
+        let maxCount = 0;
+        if (totalCount > 0) {
+          maxCount = Math.max(greenCount, amberCount, redCount);
+          if (tieBreak === 'green_first') {
+            if (greenCount === maxCount) winnerStatus = 'FULLNAV';
+            else if (amberCount === maxCount) winnerStatus = '3NAV';
+            else winnerStatus = 'NONAV';
+          } else {
+            // Default operational safety tie-break: Red > Amber > Green when tied for highest count
+            if (redCount === maxCount && redCount >= amberCount && redCount >= greenCount) {
+              // Check if strictly greater or tied
+              if (greenCount > redCount) winnerStatus = 'FULLNAV';
+              else if (amberCount > redCount) winnerStatus = '3NAV';
+              else winnerStatus = 'NONAV';
+            } else if (amberCount === maxCount && amberCount >= greenCount) {
+              winnerStatus = '3NAV';
+            } else {
+              winnerStatus = 'FULLNAV';
+            }
+          }
+          if (winnerStatus === 'FULLNAV') totalGreenWinners++;
+          else if (winnerStatus === '3NAV') totalAmberWinners++;
+          else if (winnerStatus === 'NONAV') totalRedWinners++;
+        }
+
+        summaryByKey[cell.key] = {
+          key: cell.key,
+          label: cell.label,
+          winnerStatus,
+          maxCount,
+          totalCount,
+          greenCount,
+          amberCount,
+          redCount,
+          greenDays,
+          amberDays,
+          redDays
+        };
+      });
+
+      state._lastHighestCountSummary = {
+        byKey: summaryByKey,
+        totalGreenWinners,
+        totalAmberWinners,
+        totalRedWinners,
+        activeDatesCount: activeDates.length
+      };
+      return state._lastHighestCountSummary;
+    }
+
+    function renderDailyLayerTabsUI() {
+      const selectEl = document.getElementById('selectDailyMapLayer');
+      const badge = document.getElementById('activeMapLayerBadge');
+      const btnHighest = document.getElementById('btnActivateHighestCountLayer');
+      const pillHighest = document.getElementById('highestCountSummaryPill');
+
+      const summary = computeHexHighestCountSummary();
+      if (pillHighest) {
+        pillHighest.textContent = `🟢${summary.totalGreenWinners} | 🟡${summary.totalAmberWinners} | 🔴${summary.totalRedWinners}`;
+      }
+
+      const activeIso = getActiveLayerIsoDate();
+      const isHighestMode = state.activeMapLayerMode === 'highest_count' || state.metric === 'highest_count';
+
+      if (badge) {
+        if (isHighestMode) {
+          badge.textContent = `Active: 🏆 Highest Count (${summary.activeDatesCount} Days Aggregated)`;
+          badge.className = 'px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold bg-amber-500/25 text-amber-200 border border-amber-400';
+        } else {
+          const dayMap = state.dailyHexLayers[activeIso] || {};
+          const vals = Object.values(dayMap);
+          const gCnt = vals.filter(v => v === 'FULLNAV').length;
+          const aCnt = vals.filter(v => v === '3NAV').length;
+          const rCnt = vals.filter(v => v === 'NONAV').length;
+          badge.textContent = `${formatShortOctLabel(activeIso)} • ${vals.length} Hex (🟢${gCnt} 🟡${aCnt} 🔴${rCnt})`;
+          badge.className = 'px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold bg-sky-500/20 text-sky-300 border border-sky-400/50';
+        }
+      }
+
+      if (btnHighest) {
+        btnHighest.className = isHighestMode
+          ? 'px-3 py-1 rounded-lg text-xs font-bold bg-amber-500 text-slate-950 border-2 border-white shadow-lg transition inline-flex items-center gap-1.5'
+          : 'px-3 py-1 rounded-lg text-xs font-bold bg-gradient-to-r from-emerald-500/25 via-amber-500/25 to-rose-500/25 hover:from-emerald-500/40 hover:via-amber-500/40 hover:to-rose-500/40 text-white border border-amber-400/60 transition shadow inline-flex items-center gap-1.5';
+      }
+
+      if (!selectEl) return;
+      const allDates = getAllConfiguredLayerDates();
+      const dayOptionsHtml = allDates.map((isoDate) => {
+        const shortLbl = formatShortOctLabel(isoDate);
+        const dayMap = state.dailyHexLayers[isoDate] || {};
+        const vals = Object.values(dayMap);
+        const gCnt = vals.filter(v => v === 'FULLNAV').length;
+        const aCnt = vals.filter(v => v === '3NAV').length;
+        const rCnt = vals.filter(v => v === 'NONAV').length;
+        const tot = vals.length;
+        const statusSummary = tot > 0
+          ? ` — ${tot} Colored (🟢${gCnt} 🟡${aCnt} 🔴${rCnt})`
+          : ' — Default / Uncolored';
+        return `<option value="${isoDate}">${shortLbl} (${isoDate})${statusSummary}</option>`;
+      }).join('');
+
+      selectEl.innerHTML = `
+        <optgroup label="Summary Aggregation Layer">
+          <option value="HIGHEST_COUNT">🏆 Highest Count Layer (🟢${summary.totalGreenWinners} Green | 🟡${summary.totalAmberWinners} Amber | 🔴${summary.totalRedWinners} Red)</option>
+        </optgroup>
+        <optgroup label="Individual Daily Map Layers (1 Oct, 2 Oct, 3 Oct...)">
+          ${dayOptionsHtml}
+        </optgroup>
+      `;
+
+      selectEl.value = isHighestMode ? 'HIGHEST_COUNT' : activeIso;
+    }
+
+    window.selectDailyMapLayer = function(isoDate) {
+      if (!isoDate) return;
+      state.activeMapLayerMode = 'day_layer';
+      if (state.metric === 'highest_count') {
+        state.metric = 'nav_status';
+        const mSel = document.getElementById('selectMetric');
+        if (mSel) mSel.value = 'nav_status';
+      }
+      if (!state.dailyHexLayers[isoDate]) {
+        state.dailyHexLayers[isoDate] = {};
+      }
+      state.day = dateStrToStateDay(isoDate);
+      const sDay = document.getElementById('sliderDay');
+      if (sDay) sDay.value = String(state.day);
+      syncActiveDayLayerToMapState(isoDate);
+      updateAllViews(true);
+      populateHexIdSelectorDropdown(document.getElementById('inputHexFilterSearch')?.value || '');
+      showToast(`Switched to Map Layer: ${formatShortOctLabel(isoDate)} (${isoDate})`);
+    };
+
+    window.activateHighestCountLayer = function() {
+      state.activeMapLayerMode = 'highest_count';
+      state.metric = 'highest_count';
+      const mSel = document.getElementById('selectMetric');
+      if (mSel) mSel.value = 'highest_count';
+      const summary = computeHexHighestCountSummary();
+      updateAllViews();
+      populateHexIdSelectorDropdown(document.getElementById('inputHexFilterSearch')?.value || '');
+      showToast(`🏆 Highest Count Layer Active: 🟢 ${summary.totalGreenWinners} Green, 🟡 ${summary.totalAmberWinners} Amber, 🔴 ${summary.totalRedWinners} Red hexes across ${summary.activeDatesCount} day layers`);
+    };
+
+    function setHexNavStatus(cellKey, statusCode, skipAutoSave = false) {
+      if (!cellKey) return;
+      const cellObj = getCellByKeyOrLabel(cellKey);
+      const resolvedKey = cellObj ? cellObj.key : cellKey;
+      const resolvedLabel = cellObj ? cellObj.label : null;
+
+      // If user clicks/edits a hexagon while viewing Highest Count Layer, switch to the active day layer or update the current date's layer
+      const activeIso = getActiveLayerIsoDate();
+      if (!state.dailyHexLayers) state.dailyHexLayers = {};
+      if (!state.dailyHexLayers[activeIso]) state.dailyHexLayers[activeIso] = {};
+
+      if (!statusCode || statusCode === 'CLEAR') {
+        delete state.hexNavStatusMap[resolvedKey];
+        state.manualHexNavOverrides[resolvedKey] = 'CLEAR';
+        if (resolvedLabel) {
+          delete state.hexLabelStatusMap[resolvedLabel];
+          delete state.dailyHexLayers[activeIso][resolvedLabel];
+        }
+      } else {
+        state.hexNavStatusMap[resolvedKey] = statusCode;
+        state.manualHexNavOverrides[resolvedKey] = statusCode;
+        if (resolvedLabel) {
+          state.hexLabelStatusMap[resolvedLabel] = statusCode;
+          state.dailyHexLayers[activeIso][resolvedLabel] = statusCode;
+        }
+      }
+      updateNavCountersUI();
+      if (state.autoSaveHexGrid && !skipAutoSave) {
+        window.saveHexGridPermanently(true);
+      }
+    }
+
+    function updatePermanentSaveBadges(statusText, isSaved = true) {
+      const topBadge = document.getElementById('hexPermanentSaveBadge');
+      const sideBadge = document.getElementById('sidebarHexSaveStatusText');
+      if (topBadge) {
+        topBadge.textContent = statusText;
+        topBadge.className = isSaved
+          ? 'px-2 py-0.5 rounded-md text-[10px] font-mono font-semibold bg-emerald-950/90 text-emerald-300 border border-emerald-500/40'
+          : 'px-2 py-0.5 rounded-md text-[10px] font-mono font-semibold bg-slate-900 text-slate-400 border border-slate-700';
+      }
+      if (sideBadge) {
+        sideBadge.textContent = statusText;
+        sideBadge.className = isSaved ? 'text-emerald-300 font-semibold' : 'text-slate-400';
+      }
+    }
+
+    function buildPermanentHexGridPayload() {
+      const cells = getAllHexCells();
+      const byLabel = {};
+      const byKey = {};
+      cells.forEach((c) => {
+        const st = state.hexNavStatusMap[c.key];
+        if (st && NAV_STATUS_CONFIG[st]) {
+          byLabel[c.label] = st;
+          byKey[c.key] = st;
+        }
+      });
+      return {
+        version: 2,
+        savedAtUtc: new Date().toISOString(),
+        gridGeometry: state.gridGeometry,
+        metric: state.metric,
+        activeMapLayerMode: state.activeMapLayerMode,
+        highestCountScope: state.highestCountScope,
+        highestTieBreak: state.highestTieBreak,
+        dailyHexLayers: JSON.parse(JSON.stringify(state.dailyHexLayers || {})),
+        customLayerDates: [...(state.customLayerDates || [])],
+        dynamicHexAutoClassify: Boolean(state.dynamicHexAutoClassify),
+        hexByLabel: byLabel,
+        hexByKey: byKey,
+        manualHexNavOverrides: { ...state.manualHexNavOverrides },
+        selectedHexKey: state.selectedHexKey,
+        pinnedLat: state.pinnedLat,
+        pinnedLon: state.pinnedLon,
+        pinnedLabel: state.pinnedLabel
+      };
+    }
+
+    window.saveHexGridPermanently = function(silent = false) {
+      try {
+        const payload = buildPermanentHexGridPayload();
+        const coloredCount = Object.keys(payload.hexByLabel).length;
+        localStorage.setItem(PERMANENT_HEX_STORAGE_KEY, JSON.stringify(payload));
+        state.hasRestoredPermanentHexGrid = true;
+        state.lastPermanentSaveTime = payload.savedAtUtc;
+        const timeShort = payload.savedAtUtc.slice(11, 19) + ' UTC';
+        updatePermanentSaveBadges(`Saved: ${coloredCount} Hexes (${timeShort})`, true);
+        if (!silent) {
+          showToast(`Permanently saved ${coloredCount} colored hexagon(s) to dashboard storage (${timeShort})`);
+        }
+        return payload;
+      } catch (err) {
+        console.warn('Could not save hex grid to localStorage:', err);
+        if (!silent) {
+          showToast('Browser storage blocked — use "📥 Save Permanent HTML" to bake grid into file');
+        }
+        return null;
+      }
+    };
+
+    window.loadSavedHexGridState = function(silent = true) {
+      let payload = null;
+      try {
+        const raw = localStorage.getItem(PERMANENT_HEX_STORAGE_KEY);
+        if (raw) {
+          payload = JSON.parse(raw);
+        }
+      } catch (err) {
+        console.warn('Could not read localStorage hex grid:', err);
+      }
+      if (!payload && window.__BAKED_HEX_GRID_STATE__ && typeof window.__BAKED_HEX_GRID_STATE__ === 'object') {
+        payload = window.__BAKED_HEX_GRID_STATE__;
+      }
+      if (!payload || typeof payload !== 'object') {
+        return false;
+      }
+
+      if (payload.gridGeometry && (payload.gridGeometry === 'hex_fine' || payload.gridGeometry === 'rect_coarse')) {
+        state.gridGeometry = payload.gridGeometry;
+        _cachedHexCellsGeom = null;
+        const geomSel = document.getElementById('selectGridGeometry');
+        if (geomSel) geomSel.value = state.gridGeometry;
+      }
+
+      const cells = getAllHexCells();
+      state.hexNavStatusMap = {};
+      state.hexLabelStatusMap = {};
+      state.manualHexNavOverrides = payload.manualHexNavOverrides && typeof payload.manualHexNavOverrides === 'object'
+        ? { ...payload.manualHexNavOverrides }
+        : {};
+
+      if (payload.dailyHexLayers && typeof payload.dailyHexLayers === 'object') {
+        state.dailyHexLayers = JSON.parse(JSON.stringify(payload.dailyHexLayers));
+      }
+      if (Array.isArray(payload.customLayerDates)) {
+        state.customLayerDates = [...payload.customLayerDates];
+      }
+      if (payload.activeMapLayerMode) {
+        state.activeMapLayerMode = payload.activeMapLayerMode;
+      }
+      if (payload.highestCountScope) {
+        state.highestCountScope = payload.highestCountScope;
+        const scSel = document.getElementById('selectHighestCountScope');
+        if (scSel) scSel.value = state.highestCountScope;
+      }
+      if (payload.highestTieBreak) {
+        state.highestTieBreak = payload.highestTieBreak;
+        const tbSel = document.getElementById('selectHighestTieBreak');
+        if (tbSel) tbSel.value = state.highestTieBreak;
+      }
+
+      let restoredCount = 0;
+      if (payload.hexByLabel && typeof payload.hexByLabel === 'object') {
+        const activeIso = getActiveLayerIsoDate();
+        if (!state.dailyHexLayers[activeIso]) state.dailyHexLayers[activeIso] = {};
+        Object.entries(payload.hexByLabel).forEach(([lbl, st]) => {
+          const cell = getCellByKeyOrLabel(lbl);
+          if (cell && NAV_STATUS_CONFIG[st]) {
+            state.hexNavStatusMap[cell.key] = st;
+            state.hexLabelStatusMap[cell.label] = st;
+            state.manualHexNavOverrides[cell.key] = st;
+            state.dailyHexLayers[activeIso][cell.label] = st;
+            restoredCount++;
+          }
+        });
+      }
+      if (restoredCount === 0 && payload.hexByKey && typeof payload.hexByKey === 'object') {
+        Object.entries(payload.hexByKey).forEach(([k, st]) => {
+          if (NAV_STATUS_CONFIG[st]) {
+            state.hexNavStatusMap[k] = st;
+            state.manualHexNavOverrides[k] = st;
+            const cell = getCellByKeyOrLabel(k);
+            if (cell) state.hexLabelStatusMap[cell.label] = st;
+            restoredCount++;
+          }
+        });
+      }
+
+      if (typeof payload.dynamicHexAutoClassify === 'boolean') {
+        state.dynamicHexAutoClassify = payload.dynamicHexAutoClassify;
+        const chkDyn = document.getElementById('chkDynamicHexAuto');
+        if (chkDyn) chkDyn.checked = state.dynamicHexAutoClassify;
+      }
+
+      if (restoredCount > 0) {
+        state.metric = 'nav_status';
+        const mSel = document.getElementById('selectMetric');
+        if (mSel) mSel.value = 'nav_status';
+        // Prevent startup jammer auto-feed from overwriting user's saved hexagon colors
+        const chkJamHex = document.getElementById('chkColorHexFromJammerFeed');
+        if (chkJamHex) chkJamHex.checked = false;
+      }
+
+      state.hasRestoredPermanentHexGrid = true;
+      state.lastPermanentSaveTime = payload.savedAtUtc || null;
+      updateNavCountersUI();
+      const timeLabel = payload.savedAtUtc ? payload.savedAtUtc.slice(11, 19) + ' UTC' : 'Baked HTML';
+      updatePermanentSaveBadges(`Restored: ${restoredCount} Hexes (${timeLabel})`, true);
+      if (!silent) {
+        showToast(`Restored permanently saved Hexagonal Grid (${restoredCount} colored hexagons)`);
+      }
+      return true;
+    };
+
+    window.clearSavedHexGridPermanently = function() {
+      try {
+        localStorage.removeItem(PERMANENT_HEX_STORAGE_KEY);
+      } catch (e) {}
+      window.__BAKED_HEX_GRID_STATE__ = null;
+      state.hasRestoredPermanentHexGrid = false;
+      state.dynamicHexAutoClassify = false;
+      const chk = document.getElementById('chkDynamicHexAuto');
+      if (chk) chk.checked = false;
+      state.hexNavStatusMap = {};
+      state.hexLabelStatusMap = {};
+      state.manualHexNavOverrides = {};
+      updateNavCountersUI();
+      updateAllViews();
+      populateHexIdSelectorDropdown(document.getElementById('inputHexFilterSearch')?.value || '');
+      updatePermanentSaveBadges('Saved Grid Reset (0 Hexes)', false);
+      showToast('Cleared permanently saved hexagonal grid from browser storage and reset all hexagons');
+    };
+
+    window.exportPermanentDashboardHtml = async function() {
+      // First save to localStorage as well
+      const payload = window.saveHexGridPermanently(true) || buildPermanentHexGridPayload();
+      const coloredCount = Object.keys(payload.hexByLabel || {}).length;
+      const bakedReplacement = `/*__BAKED_HEX_GRID_START__*/\n    window.__BAKED_HEX_GRID_STATE__ = ${JSON.stringify(payload, null, 2)};\n    /*__BAKED_HEX_GRID_END__*/`;
+
+      let docSource = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+      const startMarker = '/*__BAKED_HEX_GRID_START__*/';
+      const endMarker = '/*__BAKED_HEX_GRID_END__*/';
+      const sIdx = docSource.indexOf(startMarker);
+      const eIdx = docSource.indexOf(endMarker);
+      if (sIdx !== -1 && eIdx !== -1 && eIdx > sIdx) {
+        docSource = docSource.slice(0, sIdx) + bakedReplacement + docSource.slice(eIdx + endMarker.length);
+      }
+
+      const blob = new Blob([docSource], { type: 'text/html;charset=utf-8' });
+      const fileName = 'glotec_space_weather_dashboard.html';
+
+      if (window.showSaveFilePicker) {
+        try {
+          const handle = await window.showSaveFilePicker({
+            suggestedName: fileName,
+            types: [{
+              description: 'Standalone HTML Dashboard with Baked Hexagonal Grid',
+              accept: { 'text/html': ['.html'] }
+            }]
+          });
+          const writable = await handle.createWritable();
+          await writable.write(blob);
+          await writable.close();
+          updatePermanentSaveBadges(`Saved HTML & Storage (${coloredCount} Hexes)`, true);
+          showToast(`Saved standalone HTML with ${coloredCount} permanently baked hexagon(s)`);
+          return;
+        } catch (err) {
+          if (err && err.name === 'AbortError') return;
+        }
+      }
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 250);
+      updatePermanentSaveBadges(`Saved HTML & Storage (${coloredCount} Hexes)`, true);
+      showToast(`Downloaded standalone HTML with ${coloredCount} permanently baked hexagon(s)`);
+    };
 
     function updateNavCountersUI() {
       let cNonav = 0;
       let c3nav = 0;
       let cFullnav = 0;
-      Object.values(state.hexNavStatusMap).forEach((st) => {
-        if (st === 'NONAV') cNonav++;
-        else if (st === '3NAV') c3nav++;
-        else if (st === 'FULLNAV') cFullnav++;
-      });
+      const isHighestMode = state.activeMapLayerMode === 'highest_count' || state.metric === 'highest_count';
+      if (isHighestMode) {
+        const sum = state._lastHighestCountSummary || computeHexHighestCountSummary();
+        cFullnav = sum.totalGreenWinners || 0;
+        c3nav = sum.totalAmberWinners || 0;
+        cNonav = sum.totalRedWinners || 0;
+      } else {
+        Object.values(state.hexNavStatusMap).forEach((st) => {
+          if (st === 'NONAV') cNonav++;
+          else if (st === '3NAV') c3nav++;
+          else if (st === 'FULLNAV') cFullnav++;
+        });
+      }
       const elNo = document.getElementById('countNonav');
       const el3 = document.getElementById('count3nav');
       const elFull = document.getElementById('countFullnav');
       if (elNo) elNo.textContent = String(cNonav);
       if (el3) el3.textContent = String(c3nav);
       if (elFull) elFull.textContent = String(cFullnav);
+
+      const cells = getAllHexCells();
+      const totalCells = cells.length;
+      const uncoloredCount = Math.max(0, totalCells - (cNonav + c3nav + cFullnav));
+      const lOk = document.getElementById('legendCountOk');
+      const lMod = document.getElementById('legendCountMod');
+      const lHigh = document.getElementById('legendCountHigh');
+      const lUnc = document.getElementById('legendCountUncolored');
+      const lTot = document.getElementById('legendTotalHexBadge');
+      if (lOk) lOk.textContent = `${cFullnav} hex`;
+      if (lMod) lMod.textContent = `${c3nav} hex`;
+      if (lHigh) lHigh.textContent = `${cNonav} hex`;
+      if (lUnc) lUnc.textContent = `${uncoloredCount} hex`;
+      if (lTot && cells.length > 0) {
+        lTot.textContent = `ID: ${cells[0].label}–${cells[cells.length - 1].label} (${totalCells})`;
+      }
     }
+
+    function populateHexIdSelectorDropdown(filterQuery = '') {
+      const sel = document.getElementById('selectHexIdList');
+      if (!sel) return;
+      const cells = getAllHexCells();
+      const q = String(filterQuery || '').trim().toUpperCase();
+      const filtered = q
+        ? cells.filter((c) => {
+            const st = state.hexNavStatusMap[c.key] ? NAV_STATUS_CONFIG[state.hexNavStatusMap[c.key]].label.toUpperCase() : 'UNCOLORED';
+            return (
+              c.label.includes(q) ||
+              `${c.cLat.toFixed(1)},${c.cLon.toFixed(1)}`.includes(q) ||
+              st.includes(q)
+            );
+          })
+        : cells;
+
+      const maxOptions = 400;
+      const slice = filtered.slice(0, maxOptions);
+      sel.innerHTML = slice.map((c) => {
+        const stCode = state.hexNavStatusMap[c.key];
+        const stLabel = stCode ? NAV_STATUS_CONFIG[stCode].shortLabel : 'Uncolored';
+        const latStr = `${Math.abs(c.cLat).toFixed(1)}°${c.cLat >= 0 ? 'N' : 'S'}`;
+        const lonStr = `${Math.abs(c.cLon).toFixed(1)}°${c.cLon >= 0 ? 'E' : 'W'}`;
+        const selAttr = (c.key === state.selectedHexKey) ? 'selected' : '';
+        return `<option value="${c.label}" ${selAttr}>${c.label} [${latStr}, ${lonStr}] — ${stLabel}</option>`;
+      }).join('') + (filtered.length > maxOptions ? `<option disabled>... +${filtered.length - maxOptions} more (use filter box)</option>` : '');
+    }
+
+    function renderHexGridLabelsOnly() {
+      if (!hexLabelLayerGroup || !map) return;
+      hexLabelLayerGroup.clearLayers();
+      if (!state.showGrid || !state.showHexLabels) return;
+
+      const cells = getAllHexCells();
+      const zoom = map.getZoom() || 2.5;
+      const bounds = map.getBounds ? map.getBounds().pad(0.12) : null;
+      const selectedSet = new Set(state.selectedHexKeys || []);
+      if (state.selectedHexKey) selectedSet.add(state.selectedHexKey);
+
+      cells.forEach((cell) => {
+        const hasStatus = Boolean(state.hexNavStatusMap[cell.key]);
+        const isSelected = selectedSet.has(cell.key);
+        const inBounds = bounds ? bounds.contains([cell.cLat, cell.cLon]) : true;
+        if (!inBounds && !hasStatus && !isSelected) return;
+
+        // Every single hexagon in the viewport renders its own grid label centered inside the hexagon itself!
+        const isHighestMode = state.activeMapLayerMode === 'highest_count' || state.metric === 'highest_count';
+        const hcEntry = isHighestMode && state._lastHighestCountSummary
+          ? state._lastHighestCountSummary.byKey[cell.key]
+          : null;
+        const stCode = isHighestMode
+          ? (hcEntry ? hcEntry.winnerStatus : null)
+          : state.hexNavStatusMap[cell.key];
+
+        let bgStyle = 'background: rgba(15, 23, 42, 0.68); color: #e2e8f0; border: 1px solid rgba(148, 163, 184, 0.42);';
+        let statusSubTag = '';
+        if (stCode === 'FULLNAV') {
+          bgStyle = 'background: rgba(6, 78, 59, 0.94); color: #ecfdf5; border: 1px solid #34d399; box-shadow: 0 0 5px rgba(16,185,129,0.5);';
+          statusSubTag = isHighestMode && hcEntry ? `G:${hcEntry.greenCount} A:${hcEntry.amberCount} R:${hcEntry.redCount}` : 'OK';
+        } else if (stCode === '3NAV') {
+          bgStyle = 'background: rgba(120, 53, 15, 0.94); color: #fef3c7; border: 1px solid #fbbf24; box-shadow: 0 0 5px rgba(245,158,11,0.5);';
+          statusSubTag = isHighestMode && hcEntry ? `G:${hcEntry.greenCount} A:${hcEntry.amberCount} R:${hcEntry.redCount}` : 'MOD';
+        } else if (stCode === 'NONAV') {
+          bgStyle = 'background: rgba(136, 19, 55, 0.95); color: #ffe4e6; border: 1px solid #fb7185; box-shadow: 0 0 6px rgba(244,63,94,0.6);';
+          statusSubTag = isHighestMode && hcEntry ? `G:${hcEntry.greenCount} A:${hcEntry.amberCount} R:${hcEntry.redCount}` : 'DEG';
+        }
+        if (isSelected) {
+          bgStyle = 'background: rgba(14, 116, 144, 0.96); color: #ffffff; border: 1.5px solid #38bdf8; box-shadow: 0 0 8px rgba(56,189,248,0.85);';
+        }
+
+        const isCoarse = state.gridGeometry === 'hex_coarse';
+        const fontSize = zoom >= 5 ? '11.5px' : zoom >= 4 ? '10px' : zoom >= 3 ? '8.5px' : (isCoarse ? '8.5px' : '7px');
+        const subHtml = (statusSubTag && (zoom >= 2.25 || isHighestMode))
+          ? `<span style="font-size:${zoom >= 4 ? '8px' : '6px'}; font-weight:800; opacity:0.98; line-height:1;">${statusSubTag}</span>`
+          : '';
+        const iconW = isHighestMode && statusSubTag ? (zoom >= 4 ? 58 : 44) : (zoom >= 4 ? 42 : zoom >= 3 ? 34 : 26);
+        const iconH = subHtml ? (zoom >= 4 ? 24 : 18) : (zoom >= 4 ? 16 : 13);
+
+        const icon = L.divIcon({
+          className: 'hex-label-icon',
+          html: `<span class="hex-label-badge" style="font-size:${fontSize}; ${bgStyle}"><span>${cell.label}</span>${subHtml}</span>`,
+          iconSize: [iconW, iconH],
+          iconAnchor: [Math.round(iconW / 2), Math.round(iconH / 2)]
+        });
+        const lblMarker = L.marker([cell.cLat, cell.cLon], { icon, interactive: false, keyboard: false });
+        hexLabelLayerGroup.addLayer(lblMarker);
+      });
+    }
+
+    // Master function to update Hexagon Grid colors by Label(s) and refresh the entire dashboard
+    window.updateDashboardHexStatus = function(hexLabelsInput, statusInput, panToFirst = false) {
+      const targetCells = Array.isArray(hexLabelsInput)
+        ? hexLabelsInput.map(getCellByKeyOrLabel).filter(Boolean)
+        : parseHexLabelSelectionString(hexLabelsInput);
+
+      if (!targetCells || targetCells.length === 0) {
+        showToast('No matching Hexagon Label(s) found. Example format: S47 or S45-S50');
+        return 0;
+      }
+
+      const normStatus = normalizeNavStatusInput(statusInput);
+      state.metric = 'nav_status';
+      const metricSel = document.getElementById('selectMetric');
+      if (metricSel) metricSel.value = 'nav_status';
+
+      targetCells.forEach((cell) => {
+        setHexNavStatus(cell.key, normStatus);
+      });
+
+      const firstCell = targetCells[0];
+      state.selectedHexKey = firstCell.key;
+      state.selectedHexKeys = targetCells.map(c => c.key);
+      state.pinnedLat = firstCell.cLat;
+      state.pinnedLon = firstCell.cLon;
+      const statusText = normStatus === 'CLEAR' ? 'Uncolored (Default)' : NAV_STATUS_CONFIG[normStatus].label;
+      state.pinnedLabel = `Hex ${firstCell.label} [${firstCell.cLat.toFixed(1)}°, ${firstCell.cLon.toFixed(1)}°] — ${statusText}`;
+
+      if (panToFirst && map) {
+        map.panTo([firstCell.cLat, firstCell.cLon], { animate: true });
+      }
+
+      updateAllViews();
+      populateHexIdSelectorDropdown(document.getElementById('inputHexFilterSearch')?.value || '');
+      const countEl = document.getElementById('selectedHexCountText');
+      if (countEl) countEl.textContent = String(targetCells.length);
+
+      if (state.autoSaveHexGrid) {
+        window.saveHexGridPermanently(true);
+      }
+      const summaryLabels = targetCells.length <= 4
+        ? targetCells.map(c => c.label).join(', ')
+        : `${targetCells[0].label}..${targetCells[targetCells.length - 1].label} (${targetCells.length} hexes)`;
+      showToast(`Updated & Saved Dashboard: Set ${summaryLabels} to ${statusText}`);
+      return targetCells.length;
+    };
+
+    // General programmatic dashboard update function
+    window.updateDashboard = function(options = {}) {
+      if (options.date) {
+        state.day = dateStrToStateDay(options.date);
+        const sDay = document.getElementById('sliderDay');
+        if (sDay) sDay.value = String(state.day);
+      }
+      if (options.hour !== undefined) {
+        state.hour = Math.max(0, Math.min(23, Math.round(Number(options.hour))));
+        const sHr = document.getElementById('sliderHour');
+        if (sHr) sHr.value = String(state.hour);
+      }
+      if (options.metric) {
+        state.metric = options.metric;
+        const mSel = document.getElementById('selectMetric');
+        if (mSel) mSel.value = options.metric;
+      }
+      if (options.hexUpdates && typeof options.hexUpdates === 'object') {
+        Object.entries(options.hexUpdates).forEach(([hexLabel, stVal]) => {
+          const cell = getCellByKeyOrLabel(hexLabel);
+          if (cell) {
+            setHexNavStatus(cell.key, normalizeNavStatusInput(stVal));
+          }
+        });
+      }
+      updateAllViews(true);
+      populateHexIdSelectorDropdown(document.getElementById('inputHexFilterSearch')?.value || '');
+      showToast('Dashboard views, hexagon labels, and telemetry synchronized');
+    };
 
     // Global handler so popup buttons can set a specific hexagon's status directly
     window.applyHexStatusFromPopup = function(cellKey, statusCode, cLat, cLon) {
@@ -1641,12 +2991,218 @@
       showToast(`Hexagon (${cLat.toFixed(1)}°, ${cLon.toFixed(1)}°) set to ${label}`);
     };
 
+    // Point-in-polygon ray-casting check so dragging across hexagons selects the exact hexagon under the cursor
+    function isLatLonInsidePolygon(lat, lon, vertices) {
+      let inside = false;
+      for (let i = 0, j = vertices.length - 1; i < vertices.length; j = i++) {
+        const xi = vertices[i][0], yi = vertices[i][1];
+        const xj = vertices[j][0], yj = vertices[j][1];
+        const intersect = ((yi > lon) !== (yj > lon)) &&
+          (lat < ((xj - xi) * (lon - yi)) / ((yj - yi) || 1e-9) + xi);
+        if (intersect) inside = !inside;
+      }
+      return inside;
+    }
+
+    function findHexCellContainingOrNearest(lat, rawLon) {
+      const lon = ((rawLon + 540) % 360) - 180;
+      const cells = getAllHexCells();
+      let best = null;
+      let bestDist = 1e9;
+      for (let i = 0; i < cells.length; i++) {
+        const c = cells[i];
+        const d = (c.cLat - lat) * (c.cLat - lat) + (c.cLon - lon) * (c.cLon - lon);
+        if (d < bestDist) {
+          bestDist = d;
+          best = c;
+        }
+        // Quick bounding check for exact polygon containment
+        if (d < 36) {
+          if (c.isRect) {
+            const b = c.bounds;
+            if (lat >= b[0][0] && lat <= b[1][0] && lon >= b[0][1] && lon <= b[1][1]) {
+              return c;
+            }
+          } else if (c.vertices && isLatLonInsidePolygon(lat, lon, c.vertices)) {
+            return c;
+          }
+        }
+      }
+      return bestDist <= 30 ? best : null;
+    }
+
+    function highlightHexPolygonSelected(key) {
+      const poly = state.hexPolyByKey && state.hexPolyByKey[key];
+      if (!poly) return;
+      poly.setStyle({
+        color: '#38bdf8',
+        weight: 3.0,
+        fillColor: state.hexNavStatusMap[key] ? NAV_STATUS_CONFIG[state.hexNavStatusMap[key]].color : '#38bdf8',
+        fillOpacity: state.hexNavStatusMap[key] ? Math.max(state.opacity, 0.72) : 0.35
+      });
+      if (poly.bringToFront) poly.bringToFront();
+    }
+
+    function addHexCellToDragSelection(cell) {
+      if (!cell) return;
+      if (!Array.isArray(state.selectedHexKeys)) state.selectedHexKeys = [];
+      if (!state.selectedHexKeys.includes(cell.key)) {
+        state.selectedHexKeys.push(cell.key);
+        state.selectedHexKey = cell.key;
+        highlightHexPolygonSelected(cell.key);
+      }
+    }
+
+    function selectHexCellsInBoundingBox(bounds) {
+      const cells = getAllHexCells();
+      const south = bounds.getSouth();
+      const north = bounds.getNorth();
+      const west = bounds.getWest();
+      const east = bounds.getEast();
+
+      const nextSet = new Set(state._dragBaseKeys || []);
+      cells.forEach((c) => {
+        if (c.cLat >= south && c.cLat <= north && c.cLon >= west && c.cLon <= east) {
+          nextSet.add(c.key);
+        }
+      });
+
+      // Restore style for cells no longer in box, highlight cells in box
+      const prevKeys = state.selectedHexKeys || [];
+      prevKeys.forEach((k) => {
+        if (!nextSet.has(k)) {
+          const poly = state.hexPolyByKey && state.hexPolyByKey[k];
+          if (poly && poly._defaultStyle) poly.setStyle(poly._defaultStyle);
+        }
+      });
+
+      state.selectedHexKeys = Array.from(nextSet);
+      state.selectedHexKeys.forEach((k) => highlightHexPolygonSelected(k));
+    }
+
+    function updateDragSelectionUI() {
+      const keys = state.selectedHexKeys || [];
+      const labels = keys.map(k => getCellByKeyOrLabel(k)?.label).filter(Boolean);
+      const batchIn = document.getElementById('inputHexBatchLabels');
+      if (batchIn && labels.length > 0) {
+        batchIn.value = labels.join(', ');
+      }
+      const countEl = document.getElementById('selectedHexCountText');
+      if (countEl) {
+        countEl.textContent = String(labels.length);
+      }
+      const floatBadge = document.getElementById('floatingDragSelectedBadge');
+      if (floatBadge) {
+        if (labels.length === 0) {
+          floatBadge.textContent = 'Drag across grids to select';
+          floatBadge.className = 'px-2 py-0.5 rounded bg-slate-900 border border-slate-700 font-mono text-[11px] font-medium text-slate-400 max-w-[220px] truncate';
+        } else {
+          const preview = labels.length <= 4 ? labels.join(', ') : `${labels.slice(0, 3).join(', ')} +${labels.length - 3}`;
+          floatBadge.textContent = `Selected (${labels.length}): ${preview}`;
+          floatBadge.className = 'px-2 py-0.5 rounded bg-sky-500/25 border border-sky-400 font-mono text-[11px] font-bold text-sky-200 max-w-[220px] truncate';
+        }
+      }
+    }
+
+    window.setDragSelectGridsMode = function(enabled) {
+      state.dragSelectGridsMode = Boolean(enabled);
+      if (map && map.dragging) {
+        if (state.dragSelectGridsMode) {
+          map.dragging.disable();
+          map.getContainer().style.cursor = 'crosshair';
+        } else {
+          map.dragging.enable();
+          map.getContainer().style.cursor = '';
+        }
+      }
+      const topBtn = document.getElementById('btnToggleDragSelectMode');
+      const fltDragBtn = document.getElementById('btnFloatingDragMode');
+      const fltPanBtn = document.getElementById('btnFloatingPanMode');
+
+      if (topBtn) {
+        topBtn.innerHTML = state.dragSelectGridsMode
+          ? '<span>🖱️ Drag Across Grids: ON</span>'
+          : '<span>🖱️ Drag Across Grids: OFF (Pan Mode)</span>';
+        topBtn.className = state.dragSelectGridsMode
+          ? 'px-2.5 py-1 rounded-lg text-xs font-bold bg-sky-500 text-slate-950 border-2 border-white shadow transition inline-flex items-center gap-1.5'
+          : 'px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 transition inline-flex items-center gap-1.5';
+      }
+      if (fltDragBtn && fltPanBtn) {
+        if (state.dragSelectGridsMode) {
+          fltDragBtn.className = 'px-2.5 py-1 rounded-lg text-xs font-bold bg-sky-500 text-slate-950 border border-white shadow transition inline-flex items-center gap-1';
+          fltDragBtn.innerHTML = '<span>🖱️ Drag-Select Grids: ON</span>';
+          fltPanBtn.className = 'px-2 py-1 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition';
+        } else {
+          fltDragBtn.className = 'px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 transition inline-flex items-center gap-1';
+          fltDragBtn.innerHTML = '<span>🖱️ Drag-Select Grids</span>';
+          fltPanBtn.className = 'px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-400 text-slate-950 border border-white shadow transition';
+        }
+      }
+    };
+
+    window.applyColorToSelectedHexGrids = function(statusCode) {
+      const normStatus = normalizeNavStatusInput(statusCode);
+      let targetKeys = Array.isArray(state.selectedHexKeys) && state.selectedHexKeys.length > 0
+        ? [...state.selectedHexKeys]
+        : (state.selectedHexKey ? [state.selectedHexKey] : []);
+
+      if (targetKeys.length === 0) {
+        const rawLabels = document.getElementById('inputHexBatchLabels')?.value || '';
+        const parsed = parseHexLabelSelectionString(rawLabels);
+        targetKeys = parsed.map(c => c.key);
+      }
+
+      if (targetKeys.length === 0) {
+        showToast('Drag across a few grids on the map first to select them, then click Green, Amber, or Red');
+        return;
+      }
+
+      state.activeMapLayerMode = 'day_layer';
+      state.metric = 'nav_status';
+      const metricSel = document.getElementById('selectMetric');
+      if (metricSel) metricSel.value = 'nav_status';
+      const targetColorSel = document.getElementById('selectHexTargetColor');
+      if (targetColorSel && (normStatus === 'FULLNAV' || normStatus === '3NAV' || normStatus === 'NONAV' || normStatus === 'CLEAR')) {
+        targetColorSel.value = normStatus;
+      }
+
+      const labels = [];
+      targetKeys.forEach((k) => {
+        const c = getCellByKeyOrLabel(k);
+        if (c) labels.push(c.label);
+        setHexNavStatus(k, normStatus, true);
+      });
+
+      if (state.autoSaveHexGrid) {
+        window.saveHexGridPermanently(true);
+      }
+
+      updateAllViews();
+      populateHexIdSelectorDropdown(document.getElementById('inputHexFilterSearch')?.value || '');
+      updateDragSelectionUI();
+
+      const statusName = normStatus === 'CLEAR' ? 'Uncolored (Cleared)' : NAV_STATUS_CONFIG[normStatus].label;
+      const preview = labels.length <= 6 ? labels.join(', ') : `${labels.slice(0, 5).join(', ')}... (${labels.length} grids)`;
+      showToast(`Applied ${statusName} to ${labels.length} selected grid(s): ${preview}`);
+    };
+
+    window.clearHexGridSelection = function() {
+      state.selectedHexKeys = [];
+      state.selectedHexKey = null;
+      const batchIn = document.getElementById('inputHexBatchLabels');
+      if (batchIn) batchIn.value = '';
+      updateDragSelectionUI();
+      renderMapLayers();
+      showToast('Cleared hexagon selection');
+    };
+
     function renderMapLayers() {
       gridLayerGroup.clearLayers();
       equatorLayerGroup.clearLayers();
       jammerLayerGroup.clearLayers();
       stationLayerGroup.clearLayers();
 
+      state.hexPolyByKey = {};
       // 1. Render Interactive Hexagonal Grid (or Rectangular Grid)
       if (state.showGrid) {
         const cells = getAllHexCells();
@@ -1671,24 +3227,30 @@
           updateNavCountersUI();
         }
 
+        const isHighestMode = state.activeMapLayerMode === 'highest_count' || state.metric === 'highest_count';
+        const hcSummary = computeHexHighestCountSummary();
+
         cells.forEach((cell) => {
           const { key, cLat, cLon } = cell;
           const d = computeGloTecAtGps(cLat, cLon, state.day, state.hour);
-          const customNavStatus = state.hexNavStatusMap[key]; // 'NONAV' | '3NAV' | 'FULLNAV' | undefined
+          const hcCell = hcSummary.byKey[key];
+          const customNavStatus = isHighestMode
+            ? (hcCell ? hcCell.winnerStatus : null)
+            : state.hexNavStatusMap[key]; // 'NONAV' | '3NAV' | 'FULLNAV' | undefined
           const isJammedCell = state.showJammers && d.jammerDb >= 6.0;
 
-          let strokeColor = 'rgba(148, 163, 184, 0.42)';
-          let strokeWeight = 0.9;
+          let strokeColor = 'rgba(148, 163, 184, 0.58)';
+          let strokeWeight = 1.05;
           let fillColor = '#0f172a';
           let fillOpacity = 0.03; // Default: visually uncolored while remaining 100% SVG hit-testable!
 
           if (customNavStatus && NAV_STATUS_CONFIG[customNavStatus]) {
-            // User explicitly set this hexagon to NONAV-RED, 3NAV-AMBER, or FULLNAV-Green
+            // Colored by Daily Layer status OR Highest Count Winner status (Green / Amber / Red)
             fillColor = NAV_STATUS_CONFIG[customNavStatus].color;
             strokeColor = NAV_STATUS_CONFIG[customNavStatus].border;
             strokeWeight = 1.8;
             fillOpacity = state.opacity;
-          } else if (state.metric !== 'nav_status') {
+          } else if (state.metric !== 'nav_status' && state.metric !== 'highest_count') {
             // Continuous scientific metric heatmap mode
             let val = d.tec;
             if (state.metric === 'jammer_composite') val = d.compositeRisk;
@@ -1706,7 +3268,8 @@
             strokeWeight = 1.4;
           }
 
-          if (state.selectedHexKey === key) {
+          const isMultiSelected = Array.isArray(state.selectedHexKeys) && state.selectedHexKeys.includes(key);
+          if (state.selectedHexKey === key || isMultiSelected) {
             strokeColor = '#38bdf8';
             strokeWeight = 2.4;
           }
@@ -1729,28 +3292,105 @@
                 interactive: true
               });
 
+          const hoverStatus = customNavStatus ? NAV_STATUS_CONFIG[customNavStatus].label : 'Uncolored';
+          const tooltipHtml = (isHighestMode && hcCell && hcCell.totalCount > 0)
+            ? `<b>Hex ${cell.label}</b> • 🏆 Highest: <b>${hoverStatus} (${hcCell.maxCount}d)</b> • [🟢G:${hcCell.greenCount} | 🟡A:${hcCell.amberCount} | 🔴R:${hcCell.redCount}]`
+            : `<b>Hex ${cell.label}</b> [${cLat.toFixed(1)}°, ${cLon.toFixed(1)}°] (${formatShortOctLabel(getActiveLayerIsoDate())}) • ${hoverStatus} • vTEC: ${d.tec.toFixed(1)} TECU`;
+          poly.bindTooltip(
+            tooltipHtml,
+            { sticky: true, direction: 'top', className: 'hex-hover-tooltip' }
+          );
+
+          poly._defaultStyle = {
+            color: strokeColor,
+            weight: strokeWeight,
+            fillColor: fillColor,
+            fillOpacity: fillOpacity
+          };
+          state.hexPolyByKey[key] = poly;
+
+          poly.on('mouseover', () => {
+            if (state.isDraggingHexSelection && state.dragGridStyle === 'sweep') {
+              addHexCellToDragSelection(cell);
+              updateDragSelectionUI();
+            }
+          });
+
           poly.on('click', (ev) => {
             L.DomEvent.stopPropagation(ev);
+            // If user just finished dragging across grids, do not overwrite the multi-grid selection with a single click
+            if (state.dragJustFinishedTs && (Date.now() - state.dragJustFinishedTs) < 280 && state.selectedHexKeys && state.selectedHexKeys.length > 1) {
+              return;
+            }
             if (state.clickDeploysJammer) {
               addCustomJammerAt(cLat, cLon);
               return;
             }
             state.selectedHexKey = key;
+
+            // When Drag-Select Grids mode is ON, clicking a hexagon selects/toggles it so the user can pick Green/Amber/Red
+            if (state.dragSelectGridsMode && !state.multiSelectHexMode) {
+              state.selectedHexKeys = [key];
+              updateDragSelectionUI();
+              renderMapLayers();
+              showToast(`Selected Hex ${cell.label} — Drag across more grids or click 🟢 Green, 🟡 Amber, or 🔴 Red to set color`);
+              return;
+            }
+
+            if (state.multiSelectHexMode) {
+              if (!Array.isArray(state.selectedHexKeys)) state.selectedHexKeys = [];
+              const idx = state.selectedHexKeys.indexOf(key);
+              if (idx >= 0) {
+                state.selectedHexKeys.splice(idx, 1);
+              } else {
+                state.selectedHexKeys.push(key);
+              }
+              const selectedLabels = state.selectedHexKeys.map(k => getCellByKeyOrLabel(k)?.label).filter(Boolean);
+              const batchIn = document.getElementById('inputHexBatchLabels');
+              if (batchIn) batchIn.value = selectedLabels.join(', ');
+              const countEl = document.getElementById('selectedHexCountText');
+              if (countEl) countEl.textContent = String(selectedLabels.length);
+              renderMapLayers();
+              showToast(`Selected ${selectedLabels.length} Hexagon(s): ${selectedLabels.join(', ')} — Choose status & click Update Dashboard`);
+              return;
+            }
+
+            state.selectedHexKeys = [key];
+            const batchIn = document.getElementById('inputHexBatchLabels');
+            if (batchIn) batchIn.value = cell.label;
+            const selDrop = document.getElementById('selectHexIdList');
+            if (selDrop) selDrop.value = cell.label;
+            const countEl = document.getElementById('selectedHexCountText');
+            if (countEl) countEl.textContent = '1';
+
             // Apply active NAV brush immediately on click
             setHexNavStatus(key, state.activeNavBrush);
             const assigned = state.hexNavStatusMap[key];
             const statusText = assigned ? NAV_STATUS_CONFIG[assigned].label : 'UNCOLORED';
             if (state.mapClickAddsPin) {
-              addNewPin(cLat, cLon, `Hex [${cLat.toFixed(1)}°, ${cLon.toFixed(1)}°]`, state.day, state.hour, false);
+              addNewPin(cLat, cLon, `Hex ${cell.label} [${cLat.toFixed(1)}°, ${cLon.toFixed(1)}°]`, state.day, state.hour, false);
             } else {
-              setPinnedGps(cLat, cLon, `Hexagon [${cLat.toFixed(1)}°, ${cLon.toFixed(1)}°] — ${statusText}`, false);
+              setPinnedGps(cLat, cLon, `Hex ${cell.label} [${cLat.toFixed(1)}°, ${cLon.toFixed(1)}°] — ${statusText}`, false);
             }
 
+            const hcInfo = hcSummary.byKey[key] || { greenCount: 0, amberCount: 0, redCount: 0, maxCount: 0, winnerStatus: null, greenDays: [], amberDays: [], redDays: [] };
+            const winnerLbl = hcInfo.winnerStatus ? NAV_STATUS_CONFIG[hcInfo.winnerStatus].label : 'None';
             const popupHtml = `
-              <div class="text-xs space-y-2 min-w-[230px]">
+              <div class="text-xs space-y-2 min-w-[265px]">
                 <div class="flex items-center justify-between border-b border-slate-700 pb-1">
-                  <span class="font-bold text-white">Hexagon [${cLat.toFixed(1)}°, ${cLon.toFixed(1)}°]</span>
+                  <span class="font-bold text-white">Hex <span class="text-sky-300 font-mono">${cell.label}</span> (${formatShortOctLabel(getActiveLayerIsoDate())})</span>
                   <span class="font-mono font-bold ${assigned ? NAV_STATUS_CONFIG[assigned].badgeClass : 'text-slate-400'}">${statusText}</span>
+                </div>
+                <div class="bg-slate-900/90 border border-slate-700/80 rounded p-1.5 space-y-1">
+                  <div class="flex items-center justify-between text-[10px]">
+                    <span class="text-amber-300 font-semibold">🏆 Highest Count Across Days:</span>
+                    <span class="font-mono font-bold text-white">${winnerLbl} (${hcInfo.maxCount}d)</span>
+                  </div>
+                  <div class="grid grid-cols-3 gap-1 text-center font-mono text-[10px]">
+                    <div class="bg-emerald-950/80 border border-emerald-500/40 rounded py-0.5">🟢 G: <b>${hcInfo.greenCount}</b></div>
+                    <div class="bg-amber-950/80 border border-amber-500/40 rounded py-0.5">🟡 A: <b>${hcInfo.amberCount}</b></div>
+                    <div class="bg-rose-950/80 border border-rose-500/40 rounded py-0.5">🔴 R: <b>${hcInfo.redCount}</b></div>
+                  </div>
                 </div>
                 <div class="grid grid-cols-2 gap-1 font-mono text-[11px] text-slate-300">
                   <span>vTEC: <b class="text-sky-300">${d.tec.toFixed(1)} TECU</b></span>
@@ -1759,12 +3399,12 @@
                   <span>Jammer: <b class="text-fuchsia-300">${d.jammerDb > 0.5 ? '-' + d.jammerDb.toFixed(1) + ' dB' : '0 dB'}</b></span>
                 </div>
                 <div class="pt-1 border-t border-slate-800">
-                  <div class="text-[10px] text-slate-400 mb-1">Set Hexagon Status:</div>
-                  <div class="grid grid-cols-4 gap-1">
-                    <button type="button" onclick="window.applyHexStatusFromPopup('${key}', 'NONAV', ${cLat}, ${cLon})" class="py-1 px-1 rounded text-[10px] font-bold bg-rose-600 text-white hover:bg-rose-500">NONAV</button>
-                    <button type="button" onclick="window.applyHexStatusFromPopup('${key}', '3NAV', ${cLat}, ${cLon})" class="py-1 px-1 rounded text-[10px] font-bold bg-amber-500 text-slate-950 hover:bg-amber-400">3NAV</button>
-                    <button type="button" onclick="window.applyHexStatusFromPopup('${key}', 'FULLNAV', ${cLat}, ${cLon})" class="py-1 px-1 rounded text-[10px] font-bold bg-emerald-500 text-slate-950 hover:bg-emerald-400">FULLNAV</button>
-                    <button type="button" onclick="window.applyHexStatusFromPopup('${key}', 'CLEAR', ${cLat}, ${cLon})" class="py-1 px-1 rounded text-[10px] font-medium bg-slate-700 text-slate-200 hover:bg-slate-600">Clear</button>
+                  <div class="text-[10px] text-slate-400 mb-1">Set Hex <b>${cell.label}</b> on <b>${formatShortOctLabel(getActiveLayerIsoDate())}</b>:</div>
+                  <div class="grid grid-cols-2 gap-1">
+                    <button type="button" onclick="window.applyHexStatusFromPopup('${key}', 'FULLNAV', ${cLat}, ${cLon})" class="py-1 px-1.5 rounded text-[10px] font-bold bg-emerald-500 text-slate-950 hover:bg-emerald-400">🟢 Green: OK</button>
+                    <button type="button" onclick="window.applyHexStatusFromPopup('${key}', '3NAV', ${cLat}, ${cLon})" class="py-1 px-1.5 rounded text-[10px] font-bold bg-amber-500 text-slate-950 hover:bg-amber-400">🟡 Amber: Moderate</button>
+                    <button type="button" onclick="window.applyHexStatusFromPopup('${key}', 'NONAV', ${cLat}, ${cLon})" class="py-1 px-1.5 rounded text-[10px] font-bold bg-rose-600 text-white hover:bg-rose-500">🔴 Red: Degraded</button>
+                    <button type="button" onclick="window.applyHexStatusFromPopup('${key}', 'CLEAR', ${cLat}, ${cLon})" class="py-1 px-1.5 rounded text-[10px] font-medium bg-slate-700 text-slate-200 hover:bg-slate-600">⚪ Uncolored</button>
                   </div>
                 </div>
               </div>
@@ -1777,6 +3417,9 @@
 
           gridLayerGroup.addLayer(poly);
         });
+        renderHexGridLabelsOnly();
+      } else if (hexLabelLayerGroup) {
+        hexLabelLayerGroup.clearLayers();
       }
 
       // 1B. Render Active GNSS Jammers & Spoofing EW Footprints
@@ -2266,11 +3909,42 @@
       const statusLabel = currentHexStatus ? NAV_STATUS_CONFIG[currentHexStatus].label : 'UNCOLORED';
 
       document.getElementById('cellBoundsBadge').textContent =
-        nearestHex ? `Hex Center: [${nearestHex.cLat.toFixed(1)}°, ${nearestHex.cLon.toFixed(1)}°]` : 'Hex Cell';
+        nearestHex ? `Hex ${nearestHex.label} [${nearestHex.cLat.toFixed(1)}°, ${nearestHex.cLon.toFixed(1)}°]` : 'Hex Cell';
       const pinHexBadge = document.getElementById('pinnedHexStatusBadge');
       if (pinHexBadge) {
         pinHexBadge.textContent = statusLabel;
         pinHexBadge.className = `font-mono font-bold ${currentHexStatus ? NAV_STATUS_CONFIG[currentHexStatus].badgeClass : 'text-slate-400'}`;
+      }
+      if (nearestHex) {
+        const hcSum = computeHexHighestCountSummary();
+        const hcCell = hcSum.byKey[nearestHex.key];
+        const gEl = document.getElementById('selHexCountGreen');
+        const aEl = document.getElementById('selHexCountAmber');
+        const rEl = document.getElementById('selHexCountRed');
+        const winEl = document.getElementById('selectedHexWinnerBadge');
+        const daysEl = document.getElementById('selHexLayerDaysList');
+        if (hcCell) {
+          if (gEl) gEl.textContent = `${hcCell.greenCount}d`;
+          if (aEl) aEl.textContent = `${hcCell.amberCount}d`;
+          if (rEl) rEl.textContent = `${hcCell.redCount}d`;
+          if (winEl) {
+            if (hcCell.winnerStatus) {
+              const wCfg = NAV_STATUS_CONFIG[hcCell.winnerStatus];
+              winEl.textContent = `🏆 ${wCfg.shortLabel} (${hcCell.maxCount}d)`;
+              winEl.className = `font-mono font-bold ${wCfg.badgeClass}`;
+            } else {
+              winEl.textContent = 'No Colored Days';
+              winEl.className = 'font-mono text-slate-400';
+            }
+          }
+          if (daysEl) {
+            const parts = [];
+            if (hcCell.greenDays.length) parts.push(`🟢 ${hcCell.greenDays.join(', ')}`);
+            if (hcCell.amberDays.length) parts.push(`🟡 ${hcCell.amberDays.join(', ')}`);
+            if (hcCell.redDays.length) parts.push(`🔴 ${hcCell.redDays.join(', ')}`);
+            daysEl.textContent = parts.length ? parts.join(' | ') : `Hex ${nearestHex.label}: Uncolored across daily layers`;
+          }
+        }
       }
       updateNavCountersUI();
       document.getElementById('detailVtec').textContent = `${pinData.tec.toFixed(1)} TECU`;
@@ -2306,10 +3980,14 @@
       const legendTitle = document.getElementById('legendTitle');
       const legendGradient = document.getElementById('legendGradient');
       const legendTicks = document.getElementById('legendTicks');
-      if (state.metric === 'nav_status') {
-        legendTitle.textContent = 'Tactical Hexagon NAV Status (Default: Uncolored)';
+      if (state.metric === 'highest_count' || state.activeMapLayerMode === 'highest_count') {
+        legendTitle.textContent = '🏆 Highest Count Layer: Dominant Status per Hexagon (Green / Amber / Red)';
         legendGradient.style.background = 'linear-gradient(90deg, rgba(30,41,59,0.5) 0%, rgba(30,41,59,0.5) 24%, #10b981 25%, #10b981 50%, #f59e0b 51%, #f59e0b 75%, #ef4444 76%, #ef4444 100%)';
-        legendTicks.innerHTML = '<span>Uncolored (Default)</span><span class="text-emerald-400 font-semibold">FULLNAV-Green</span><span class="text-amber-400 font-semibold">3NAV-AMBER</span><span class="text-rose-400 font-semibold">NONAV-RED</span>';
+        legendTicks.innerHTML = '<span>0 Days</span><span class="text-emerald-400 font-semibold">Most Green (OK)</span><span class="text-amber-400 font-semibold">Most Amber (Mod)</span><span class="text-rose-400 font-semibold">Most Red (Degraded)</span>';
+      } else if (state.metric === 'nav_status') {
+        legendTitle.textContent = `Daily Layer (${formatShortOctLabel(getActiveLayerIsoDate())}): Green: OK | Amber: Moderate | Red: Highly Degraded`;
+        legendGradient.style.background = 'linear-gradient(90deg, rgba(30,41,59,0.5) 0%, rgba(30,41,59,0.5) 24%, #10b981 25%, #10b981 50%, #f59e0b 51%, #f59e0b 75%, #ef4444 76%, #ef4444 100%)';
+        legendTicks.innerHTML = '<span>Uncolored</span><span class="text-emerald-400 font-semibold">Green: OK</span><span class="text-amber-400 font-semibold">Amber: Moderate</span><span class="text-rose-400 font-semibold">Red: Highly Degraded</span>';
       } else if (state.metric === 'jammer_composite') {
         legendTitle.textContent = 'Combined Ionospheric TEC + GNSS Jammer Denial Index (0–100)';
         legendGradient.style.background = 'linear-gradient(90deg, #1e3a8a 0%, #0284c7 25%, #eab308 50%, #f97316 70%, #e11d48 85%, #d946ef 100%)';
@@ -2349,7 +4027,7 @@
         '2026-10-16',
         '2026-10-20',
         '2026-10-23',
-        '2026-10-24'
+        '2026-10-27'
       ];
       tbody.innerHTML = notableDates.map((iso) => {
         const d = FULL_ARCHIVE_DAYS.find(item => item.date === iso) || FULL_ARCHIVE_DAYS[0];
@@ -2634,7 +4312,7 @@
 
       // Clamp isoDate to available archive range [2025-02-24, 2026-10-23]
       if (isoDate < '2025-02-24') isoDate = '2025-02-24';
-      if (isoDate > '2026-10-24') isoDate = '2026-10-24';
+      if (isoDate > '2026-10-27') isoDate = '2026-10-27';
 
       // Now parse rawTimeVal if provided
       let roundedHour = extractedHour !== null ? extractedHour : Math.round(state.hour);
@@ -2961,12 +4639,18 @@
       if (mapToHex) {
         const cells = getAllHexCells();
         cells.forEach((c) => {
+          // Respect user's permanently saved or manually painted hexagon overrides
+          if (state.manualHexNavOverrides && state.manualHexNavOverrides[c.key] !== undefined) {
+            if (state.hexNavStatusMap[c.key] === 'NONAV') nonavCount++;
+            else if (state.hexNavStatusMap[c.key] === '3NAV') nav3Count++;
+            return;
+          }
           const jamInfo = computeJammerImpactAtGps(c.cLat, c.cLon);
           if (jamInfo.cn0DropDb >= 8.0) {
-            setHexNavStatus(c.key, 'NONAV');
+            setHexNavStatus(c.key, 'NONAV', true);
             nonavCount++;
           } else if (jamInfo.cn0DropDb >= 2.0) {
-            setHexNavStatus(c.key, '3NAV');
+            setHexNavStatus(c.key, '3NAV', true);
             nav3Count++;
           }
         });
@@ -3331,7 +5015,7 @@
       if (!tbody) return;
 
       const dayMeta = getDayMetaByFlexIndex(state.day);
-      const dateStr = dayMeta ? dayMeta.date : '2026-10-24';
+      const dateStr = dayMeta ? dayMeta.date : '2026-10-27';
       const hourStr = `${String(state.hour).padStart(2, '0')}:00 UTC`;
 
       // Compute global peak TEC across grid for current day & hour
@@ -3442,7 +5126,7 @@
         return;
       }
       const dayMeta = getDayMetaByFlexIndex(state.day);
-      const dateStr = dayMeta ? dayMeta.date : '2026-10-24';
+      const dateStr = dayMeta ? dayMeta.date : '2026-10-27';
       const hourStr = `${String(state.hour).padStart(2, '0')}:00`;
 
       const rows = DIGEST_SECTORS.map((s) => {
@@ -3537,6 +5221,7 @@
 
     function updateAllViews(syncInputs = false) {
       if (syncInputs) syncDateAndTimeInputsFromState();
+      renderDailyLayerTabsUI();
       updateTelemetryUI();
       renderMapLayers();
       renderMultiPinList();
@@ -3729,10 +5414,10 @@
           localStorage.setItem('glotec_daily_last_sync', nowStr);
         } catch (e) {}
         document.getElementById('lastDailyPullText').textContent =
-          `Daily Auto-Pull Active (${nowStr}) | Full 607-Day Archive (2025-02-24 → 2026-10-24) Ready`;
+          `Daily Auto-Pull Active (${nowStr}) | Full 607-Day Archive (2025-02-24 → 2026-10-27) Ready`;
         if (feedback) {
           feedback.textContent =
-            `Daily sync verified at ${nowStr}. Direct cross-origin fetch handled via calibrated 2025-02-24 → 2026-10-24 GloTEC archive.`;
+            `Daily sync verified at ${nowStr}. Direct cross-origin fetch handled via calibrated 2025-02-24 → 2026-10-27 GloTEC archive.`;
         }
         if (!silent) {
           state.day = dateStrToStateDay('2026-10-23');
@@ -3752,7 +5437,7 @@
       const feedback = document.getElementById('ingestFeedback');
       if (feedback) {
         feedback.textContent =
-          'Pulling all available historical frames from services.swpc.noaa.gov/products/glotec/geojson_2d_urt.json & NCEI Archive (2025-02-24 → 2026-10-24)...';
+          'Pulling all available historical frames from services.swpc.noaa.gov/products/glotec/geojson_2d_urt.json & NCEI Archive (2025-02-24 → 2026-10-27)...';
       }
       state.archiveWindow = 'all_607';
       const winSel = document.getElementById('selectArchiveWindow');
@@ -3788,7 +5473,7 @@
         if (mSel) mSel.value = 'tec';
       }
       updateAllViews();
-      showToast(`All ${TOTAL_ARCHIVE_DAYS} historical days (2025-02-24 → 2026-10-24) loaded onto Hexagon Grid`);
+      showToast(`All ${TOTAL_ARCHIVE_DAYS} historical days (2025-02-24 → 2026-10-27) loaded onto Hexagon Grid`);
     }
 
     function downloadPythonDailyAndHistoricalPuller() {
@@ -3969,11 +5654,195 @@
       populateJammerPresetSelect();
       initMap();
       initCharts();
+      seedDefaultOctLayersIfEmpty();
+      window.loadSavedHexGridState(true);
+      if (state.activeMapLayerMode !== 'highest_count') {
+        syncActiveDayLayerToMapState(getActiveLayerIsoDate());
+      }
+      const initCell = findNearestCellKey(state.pinnedLat, state.pinnedLon);
+      if (initCell) {
+        state.selectedHexKey = initCell.key;
+        state.selectedHexKeys = [initCell.key];
+        const bIn = document.getElementById('inputHexBatchLabels');
+        if (bIn) bIn.value = initCell.label;
+      }
       updateAllViews();
+      populateHexIdSelectorDropdown('');
+
+      // Wire up Hex ID Labels checkbox
+      const chkHexLbl = document.getElementById('chkShowHexLabels');
+      if (chkHexLbl) {
+        chkHexLbl.addEventListener('change', (e) => {
+          state.showHexLabels = e.target.checked;
+          renderHexGridLabelsOnly();
+        });
+      }
+
+      // Wire up Hex Filter Search input
+      const hexFilterIn = document.getElementById('inputHexFilterSearch');
+      if (hexFilterIn) {
+        hexFilterIn.addEventListener('input', (e) => {
+          populateHexIdSelectorDropdown(e.target.value);
+        });
+      }
+
+      // Wire up Hex ID Dropdown selection
+      const hexListSel = document.getElementById('selectHexIdList');
+      if (hexListSel) {
+        hexListSel.addEventListener('change', (e) => {
+          const pickedLabel = e.target.value;
+          const cell = getCellByKeyOrLabel(pickedLabel);
+          if (!cell) return;
+          if (state.multiSelectHexMode) {
+            if (!Array.isArray(state.selectedHexKeys)) state.selectedHexKeys = [];
+            if (!state.selectedHexKeys.includes(cell.key)) state.selectedHexKeys.push(cell.key);
+          } else {
+            state.selectedHexKeys = [cell.key];
+          }
+          state.selectedHexKey = cell.key;
+          const labels = state.selectedHexKeys.map(k => getCellByKeyOrLabel(k)?.label).filter(Boolean);
+          const batchIn = document.getElementById('inputHexBatchLabels');
+          if (batchIn) batchIn.value = labels.join(', ');
+          const countEl = document.getElementById('selectedHexCountText');
+          if (countEl) countEl.textContent = String(labels.length);
+          setPinnedGps(cell.cLat, cell.cLon, `Hex ${cell.label} [${cell.cLat.toFixed(1)}°, ${cell.cLon.toFixed(1)}°]`, true);
+        });
+      }
+
+      // Wire up Drag-Select Grids Mode buttons & style selector
+      const btnTopDrag = document.getElementById('btnToggleDragSelectMode');
+      if (btnTopDrag) {
+        btnTopDrag.addEventListener('click', () => {
+          window.setDragSelectGridsMode(!state.dragSelectGridsMode);
+          showToast(state.dragSelectGridsMode
+            ? '🖱️ Drag Across Grids ON: Click and drag across hexagons to select them, then click Green, Amber, or Red!'
+            : '🖐️ Pan Map Mode ON: Drag to pan the map (or hold Shift + Drag to select grids)');
+        });
+      }
+      const btnFltDrag = document.getElementById('btnFloatingDragMode');
+      if (btnFltDrag) {
+        btnFltDrag.addEventListener('click', () => {
+          window.setDragSelectGridsMode(true);
+          showToast('🖱️ Drag Across Grids ON: Click and drag across hexagons to select them, then click Green, Amber, or Red!');
+        });
+      }
+      const btnFltPan = document.getElementById('btnFloatingPanMode');
+      if (btnFltPan) {
+        btnFltPan.addEventListener('click', () => {
+          window.setDragSelectGridsMode(false);
+          showToast('🖐️ Pan Map Mode ON: Drag to pan the map (or hold Shift + Drag to select grids)');
+        });
+      }
+      const selDragStyle = document.getElementById('selectDragGridStyle');
+      if (selDragStyle) {
+        selDragStyle.addEventListener('change', (e) => {
+          state.dragGridStyle = e.target.value;
+          showToast(state.dragGridStyle === 'box'
+            ? 'Drag Style set to Rectangle Box: Drag a box over hexagons to select them'
+            : 'Drag Style set to Sweep Path: Drag cursor across any hexagons to select them');
+        });
+      }
+      updateDragSelectionUI();
+
+      // Wire up Multi-Select Hex Mode checkbox
+      const chkMultiHex = document.getElementById('chkMultiSelectHexMode');
+      if (chkMultiHex) {
+        chkMultiHex.addEventListener('change', (e) => {
+          state.multiSelectHexMode = e.target.checked;
+          if (state.multiSelectHexMode) {
+            showToast('Multi-Select Hex Mode ON: Click multiple hexagons on the map, then click Update Dashboard');
+          } else {
+            showToast('Multi-Select Hex Mode OFF: Clicking a hexagon immediately applies the active brush');
+          }
+        });
+      }
+
+      // Wire up "Update Dashboard" button for selected Hexagon label(s)
+      const btnApplyHex = document.getElementById('btnApplyHexSelectionUpdate');
+      if (btnApplyHex) {
+        btnApplyHex.addEventListener('click', () => {
+          const rawLabels = document.getElementById('inputHexBatchLabels')?.value || document.getElementById('selectHexIdList')?.value || '';
+          const targetColor = document.getElementById('selectHexTargetColor')?.value || 'FULLNAV';
+          window.updateDashboardHexStatus(rawLabels, targetColor, true);
+        });
+      }
+
+      // Wire up "Save Grid Permanently" buttons (Top Selector Bar + Right Sidebar)
+      const btnSavePerm = document.getElementById('btnSaveHexGridPermanently');
+      if (btnSavePerm) {
+        btnSavePerm.addEventListener('click', () => {
+          window.saveHexGridPermanently(false);
+        });
+      }
+      const btnSideSavePerm = document.getElementById('btnSidebarSaveHexGridPermanently');
+      if (btnSideSavePerm) {
+        btnSideSavePerm.addEventListener('click', () => {
+          window.saveHexGridPermanently(false);
+        });
+      }
+
+      // Wire up "Save Permanent HTML" buttons (Top Selector Bar + Right Sidebar)
+      const btnSaveHtml = document.getElementById('btnSavePermanentHtml');
+      if (btnSaveHtml) {
+        btnSaveHtml.addEventListener('click', () => {
+          window.exportPermanentDashboardHtml();
+        });
+      }
+      const btnSideSaveHtml = document.getElementById('btnSidebarExportPermanentHtml');
+      if (btnSideSaveHtml) {
+        btnSideSaveHtml.addEventListener('click', () => {
+          window.exportPermanentDashboardHtml();
+        });
+      }
+
+      // Wire up Auto-Save checkbox
+      const chkAutoSave = document.getElementById('chkAutoSaveHexGrid');
+      if (chkAutoSave) {
+        chkAutoSave.addEventListener('change', (e) => {
+          state.autoSaveHexGrid = e.target.checked;
+          if (state.autoSaveHexGrid) {
+            window.saveHexGridPermanently(true);
+            showToast('Auto-Save ON: All hexagonal grid updates are automatically saved permanently');
+          } else {
+            updatePermanentSaveBadges('Auto-Save Paused (Click Save)', false);
+            showToast('Auto-Save OFF: Click "💾 Save Grid Permanently" when ready to commit changes');
+          }
+        });
+      }
+
+      // Wire up "Reset Saved" button
+      const btnResetPerm = document.getElementById('btnResetPermanentHexGrid');
+      if (btnResetPerm) {
+        btnResetPerm.addEventListener('click', () => {
+          window.clearSavedHexGridPermanently();
+        });
+      }
+
+      // Wire up "Locate Hex" button
+      const btnFocusHex = document.getElementById('btnFocusSelectedHex');
+      if (btnFocusHex) {
+        btnFocusHex.addEventListener('click', () => {
+          const rawLabels = document.getElementById('inputHexBatchLabels')?.value || document.getElementById('selectHexIdList')?.value || '';
+          const cells = parseHexLabelSelectionString(rawLabels);
+          if (cells.length > 0) {
+            const c = cells[0];
+            state.selectedHexKey = c.key;
+            state.selectedHexKeys = cells.map(x => x.key);
+            setPinnedGps(c.cLat, c.cLon, `Hex ${c.label} [${c.cLat.toFixed(1)}°, ${c.cLon.toFixed(1)}°]`, true);
+            if (map && map.getZoom() < 4) map.setView([c.cLat, c.cLon], 4, { animate: true });
+            showToast(`Focused Hex ${c.label} at [${c.cLat.toFixed(1)}°, ${c.cLon.toFixed(1)}°]`);
+          } else {
+            showToast('Enter a valid Hexagon Label (e.g. S47) to locate');
+          }
+        });
+      }
 
       // Sliders
       document.getElementById('sliderDay').addEventListener('input', (e) => {
         state.day = Number(e.target.value);
+        if (state.activeMapLayerMode !== 'highest_count') {
+          syncActiveDayLayerToMapState(getActiveLayerIsoDate());
+        }
         updateAllViews(true);
       });
 
@@ -3991,6 +5860,9 @@
           state.hour = Number(btn.getAttribute('data-preset-hour'));
           document.getElementById('sliderDay').value = String(state.day);
           document.getElementById('sliderHour').value = String(state.hour);
+          if (state.activeMapLayerMode !== 'highest_count') {
+            syncActiveDayLayerToMapState(getActiveLayerIsoDate());
+          }
           updateAllViews();
         });
       });
@@ -4003,6 +5875,9 @@
           state.hour = Number(btn.getAttribute('data-preset-hour'));
           document.getElementById('sliderDay').value = String(state.day);
           document.getElementById('sliderHour').value = String(state.hour);
+          if (state.activeMapLayerMode !== 'highest_count') {
+            syncActiveDayLayerToMapState(getActiveLayerIsoDate());
+          }
           updateAllViews();
         });
       });
@@ -4147,12 +6022,163 @@
       // Map Metric, Geometry & Basemap Selectors
       document.getElementById('selectMetric').addEventListener('change', (e) => {
         state.metric = e.target.value;
+        if (state.metric === 'highest_count') {
+          state.activeMapLayerMode = 'highest_count';
+        } else if (state.activeMapLayerMode === 'highest_count') {
+          state.activeMapLayerMode = 'day_layer';
+          syncActiveDayLayerToMapState(getActiveLayerIsoDate());
+        }
         updateAllViews();
       });
 
+      // Wire up Individual Daily Map Layer Dropdown (#selectDailyMapLayer) & Prev/Next Day buttons
+      const selDailyMapLayer = document.getElementById('selectDailyMapLayer');
+      if (selDailyMapLayer) {
+        selDailyMapLayer.addEventListener('change', (e) => {
+          const val = e.target.value;
+          if (val === 'HIGHEST_COUNT') {
+            window.activateHighestCountLayer();
+          } else if (val) {
+            window.selectDailyMapLayer(val);
+          }
+        });
+      }
+
+      const btnPrevDaily = document.getElementById('btnPrevDailyLayer');
+      if (btnPrevDaily) {
+        btnPrevDaily.addEventListener('click', () => {
+          const allDates = getAllConfiguredLayerDates();
+          const curIso = getActiveLayerIsoDate();
+          const idx = allDates.indexOf(curIso);
+          const prevIso = idx > 0 ? allDates[idx - 1] : allDates[allDates.length - 1];
+          window.selectDailyMapLayer(prevIso);
+        });
+      }
+
+      const btnNextDaily = document.getElementById('btnNextDailyLayer');
+      if (btnNextDaily) {
+        btnNextDaily.addEventListener('click', () => {
+          const allDates = getAllConfiguredLayerDates();
+          const curIso = getActiveLayerIsoDate();
+          const idx = allDates.indexOf(curIso);
+          const nextIso = (idx >= 0 && idx < allDates.length - 1) ? allDates[idx + 1] : allDates[0];
+          window.selectDailyMapLayer(nextIso);
+        });
+      }
+
+      // Wire up Highest Count Layer button & Scope / Tie-Break selectors
+      const btnHighestCount = document.getElementById('btnActivateHighestCountLayer');
+      if (btnHighestCount) {
+        btnHighestCount.addEventListener('click', () => {
+          if (state.activeMapLayerMode === 'highest_count') {
+            window.selectDailyMapLayer(getActiveLayerIsoDate());
+          } else {
+            window.activateHighestCountLayer();
+          }
+        });
+      }
+
+      const selHcScope = document.getElementById('selectHighestCountScope');
+      if (selHcScope) {
+        selHcScope.addEventListener('change', (e) => {
+          state.highestCountScope = e.target.value;
+          if (state.autoSaveHexGrid) window.saveHexGridPermanently(true);
+          updateAllViews();
+          showToast(`Highest Count Scope set to: ${e.target.options[e.target.selectedIndex].text}`);
+        });
+      }
+
+      const selHcTie = document.getElementById('selectHighestTieBreak');
+      if (selHcTie) {
+        selHcTie.addEventListener('change', (e) => {
+          state.highestTieBreak = e.target.value;
+          if (state.autoSaveHexGrid) window.saveHexGridPermanently(true);
+          updateAllViews();
+          showToast(`Tie-Break rule set to: ${e.target.options[e.target.selectedIndex].text}`);
+        });
+      }
+
+      // Wire up "Auto-Populate 1 Oct–27 Oct Layers" button
+      const btnSeedOct = document.getElementById('btnSeedOctDailyLayers');
+      if (btnSeedOct) {
+        btnSeedOct.addEventListener('click', () => {
+          const cells = getAllHexCells();
+          for (let d = 1; d <= 27; d++) {
+            const iso = `2026-10-${String(d).padStart(2, '0')}`;
+            if (!state.dailyHexLayers[iso]) state.dailyHexLayers[iso] = {};
+            const dIdx = FULL_ARCHIVE_DAYS.findIndex(x => x.date === iso);
+            const dayNum = dIdx >= 0 ? dIdx + 1 : d;
+            cells.forEach((c) => {
+              // Preserve user's existing manual overrides on that date if any
+              if (state.dailyHexLayers[iso][c.label]) return;
+              const dVal = computeGloTecAtGps(c.cLat, c.cLon, dayNum, state.hour);
+              if (dVal.jammerDb >= 8.0 || dVal.tec >= 66.0) {
+                state.dailyHexLayers[iso][c.label] = 'NONAV';
+              } else if (dVal.jammerDb >= 2.0 || dVal.tec >= 46.0) {
+                state.dailyHexLayers[iso][c.label] = '3NAV';
+              } else if (Math.abs(c.cLat) <= 35) {
+                state.dailyHexLayers[iso][c.label] = 'FULLNAV';
+              }
+            });
+          }
+          syncActiveDayLayerToMapState(getActiveLayerIsoDate());
+          if (state.autoSaveHexGrid) window.saveHexGridPermanently(true);
+          updateAllViews();
+          showToast('Populated 1 Oct – 27 Oct daily layers with Green, Amber, and Red statuses! Click "🏆 Highest Count Layer" to view dominant colors.');
+        });
+      }
+
+      // Wire up "Copy Layer To..." button
+      const btnCopyDay = document.getElementById('btnCopyDayLayerToNext');
+      if (btnCopyDay) {
+        btnCopyDay.addEventListener('click', () => {
+          const srcIso = getActiveLayerIsoDate();
+          const targetInput = prompt(`Copy Hexagon Grid from ${formatShortOctLabel(srcIso)} (${srcIso}) to which date? (Enter e.g. "2 Oct", "3 Oct", or "2026-10-02"):`, '2026-10-02');
+          if (!targetInput) return;
+          let destIso = targetInput.trim();
+          const mOct = destIso.match(/^(\d{1,2})\s*oct/i);
+          if (mOct) {
+            destIso = `2026-10-${String(parseInt(mOct[1], 10)).padStart(2, '0')}`;
+          }
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(destIso)) {
+            showToast('Please enter a valid date like "2 Oct" or "2026-10-02"');
+            return;
+          }
+          state.dailyHexLayers[destIso] = JSON.parse(JSON.stringify(state.dailyHexLayers[srcIso] || {}));
+          if (!state.customLayerDates.includes(destIso)) state.customLayerDates.push(destIso);
+          window.selectDailyMapLayer(destIso);
+          if (state.autoSaveHexGrid) window.saveHexGridPermanently(true);
+          showToast(`Copied ${Object.keys(state.dailyHexLayers[destIso]).length} hexagons from ${formatShortOctLabel(srcIso)} to ${formatShortOctLabel(destIso)}`);
+        });
+      }
+
+      // Wire up "+ Add Date Layer" button
+      const btnAddDateLayer = document.getElementById('btnAddCustomDateLayer');
+      if (btnAddDateLayer) {
+        btnAddDateLayer.addEventListener('click', () => {
+          const rawIn = prompt('Enter new Date Layer to create or open (e.g. "28 Oct" or "2026-10-28" or "2025-06-01"):', '2026-10-28');
+          if (!rawIn) return;
+          let iso = rawIn.trim();
+          const mOct = iso.match(/^(\d{1,2})\s*oct/i);
+          if (mOct) {
+            iso = `2026-10-${String(parseInt(mOct[1], 10)).padStart(2, '0')}`;
+          }
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+            showToast('Use format "1 Oct" or "YYYY-MM-DD"');
+            return;
+          }
+          if (!state.customLayerDates.includes(iso)) state.customLayerDates.push(iso);
+          if (!state.dailyHexLayers[iso]) state.dailyHexLayers[iso] = {};
+          window.selectDailyMapLayer(iso);
+          if (state.autoSaveHexGrid) window.saveHexGridPermanently(true);
+        });
+      }
+
       document.getElementById('selectGridGeometry').addEventListener('change', (e) => {
         state.gridGeometry = e.target.value;
-        renderMapLayers();
+        _cachedHexCellsGeom = null;
+        updateAllViews();
+        populateHexIdSelectorDropdown(document.getElementById('inputHexFilterSearch')?.value || '');
       });
 
       document.getElementById('selectBasemap').addEventListener('change', (e) => {
@@ -4260,8 +6286,12 @@
         btn.addEventListener('click', () => {
           state.activeNavBrush = btn.getAttribute('data-nav-brush');
           updateBrushButtonsUI();
-          const bName = state.activeNavBrush === 'CLEAR' ? 'Uncolored (Eraser)' : NAV_STATUS_CONFIG[state.activeNavBrush].label;
-          showToast(`Active Hexagon Brush: ${bName} — Click any hexagon on the map to set`);
+          if (Array.isArray(state.selectedHexKeys) && state.selectedHexKeys.length > 0) {
+            window.applyColorToSelectedHexGrids(state.activeNavBrush);
+          } else {
+            const bName = state.activeNavBrush === 'CLEAR' ? 'Uncolored (Eraser)' : NAV_STATUS_CONFIG[state.activeNavBrush].label;
+            showToast(`Active Hexagon Brush: ${bName} — Drag across grids or click any hexagon on the map to set`);
+          }
         });
       });
 
@@ -4294,7 +6324,7 @@
         if (state.dynamicHexAutoClassify) {
           state.metric = 'nav_status';
           document.getElementById('selectMetric').value = 'nav_status';
-          showToast('Dynamic Hex Sync ON: Hexagons now update NONAV/3NAV/FULLNAV as you change Date & Time');
+          showToast('Dynamic Hex Sync ON: Hexagons now update Green: OK / Amber: Moderate / Red: Highly Degraded as you change Date & Time');
         }
         updateAllViews();
       });
@@ -4306,18 +6336,27 @@
         state.metric = 'nav_status';
         document.getElementById('selectMetric').value = 'nav_status';
         updateAllViews();
-        showToast('Auto-classified hexagons into NONAV-RED, 3NAV-AMBER, and FULLNAV-Green (Dynamic Sync ON)');
+        showToast('Auto-classified hexagons into Green: OK, Amber: Moderate Degradation, and Red: Highly Degraded (Dynamic Sync ON)');
       });
 
       document.getElementById('btnClearAllHexColors').addEventListener('click', () => {
         state.dynamicHexAutoClassify = false;
         const chk = document.getElementById('chkDynamicHexAuto');
         if (chk) chk.checked = false;
+        const activeIso = getActiveLayerIsoDate();
+        if (state.dailyHexLayers && state.dailyHexLayers[activeIso]) {
+          state.dailyHexLayers[activeIso] = {};
+        }
         state.hexNavStatusMap = {};
+        state.hexLabelStatusMap = {};
         state.manualHexNavOverrides = {};
         state.metric = 'nav_status';
         document.getElementById('selectMetric').value = 'nav_status';
+        if (state.autoSaveHexGrid) {
+          window.saveHexGridPermanently(true);
+        }
         updateAllViews();
+        populateHexIdSelectorDropdown(document.getElementById('inputHexFilterSearch')?.value || '');
         showToast('Cleared all hexagons to default Uncolored state');
       });
       document.getElementById('chkShowStations').addEventListener('change', (e) => {
@@ -4413,8 +6452,89 @@
       });
 
       document.getElementById('btnResetWorld').addEventListener('click', () => {
-        if (map) map.setView([12.0, 20.0], 2);
+        if (map) map.setView([12.0, 25.0], 2.5);
       });
+
+      // Wire up Map Height selector (Extended 820px / 1000px / 1200px / 88vh / 560px)
+      const selMapHeight = document.getElementById('selectMapHeight');
+      const mapViewportWrap = document.getElementById('mapViewportWrapper');
+      if (selMapHeight && mapViewportWrap) {
+        selMapHeight.addEventListener('change', (e) => {
+          mapViewportWrap.style.height = e.target.value;
+          setTimeout(() => {
+            if (map) {
+              map.invalidateSize({ animate: true });
+              renderHexGridLabelsOnly();
+            }
+          }, 60);
+          showToast(`Extended dashboard map height to ${e.target.value}`);
+        });
+      }
+
+      // Wire up Full-Width (12-Col) vs Split View (8/4-Col) Map Layout Toggle
+      let isFullWidthMap = true;
+      const btnToggleLayout = document.getElementById('btnToggleMapLayout');
+      const mapMainCard = document.getElementById('mapMainCard');
+      const sidebarCol = document.getElementById('sidebarControlsColumn');
+      if (btnToggleLayout && mapMainCard && sidebarCol) {
+        btnToggleLayout.addEventListener('click', () => {
+          isFullWidthMap = !isFullWidthMap;
+          if (isFullWidthMap) {
+            mapMainCard.className = 'lg:col-span-12 bg-slate-900 border border-slate-800 rounded-xl overflow-hidden flex flex-col transition-all duration-200';
+            sidebarCol.className = 'lg:col-span-12 grid grid-cols-1 lg:grid-cols-3 gap-4 items-start';
+            btnToggleLayout.textContent = '⛶ Full-Width Map: ON';
+            btnToggleLayout.className = 'px-2.5 py-1 rounded-lg text-xs font-semibold bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 transition';
+            showToast('Extended Map to Full 12-Column Dashboard Width');
+          } else {
+            mapMainCard.className = 'lg:col-span-8 bg-slate-900 border border-slate-800 rounded-xl overflow-hidden flex flex-col transition-all duration-200';
+            sidebarCol.className = 'lg:col-span-4 flex flex-col gap-4';
+            btnToggleLayout.textContent = '◫ Split View (8/4)';
+            btnToggleLayout.className = 'px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition';
+            showToast('Switched to Split Side-by-Side Map & Sidebar Layout');
+          }
+          setTimeout(() => {
+            if (map) {
+              map.invalidateSize({ animate: true });
+              renderHexGridLabelsOnly();
+            }
+          }, 80);
+        });
+      }
+
+      // Wire up Maximize / Fullscreen Map Toggle
+      let isMapFullscreen = false;
+      const btnFullMap = document.getElementById('btnFullscreenMap');
+      if (btnFullMap && mapMainCard && mapViewportWrap) {
+        let prevHeight = '820px';
+        const toggleMapFullscreen = (forceOff = false) => {
+          isMapFullscreen = forceOff ? false : !isMapFullscreen;
+          if (isMapFullscreen) {
+            prevHeight = mapViewportWrap.style.height || '820px';
+            mapMainCard.classList.add('map-fullscreen-active');
+            mapViewportWrap.style.height = '100%';
+            btnFullMap.textContent = '✕ Exit Fullscreen';
+            btnFullMap.className = 'px-2.5 py-1 rounded-lg text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white border border-rose-300 transition shadow';
+            showToast('Maximized Hexagonal Grid Map (Press Esc or click Exit Fullscreen to return)');
+          } else {
+            mapMainCard.classList.remove('map-fullscreen-active');
+            mapViewportWrap.style.height = prevHeight;
+            btnFullMap.textContent = '🗖 Maximize';
+            btnFullMap.className = 'px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-500/25 hover:bg-indigo-500/40 text-indigo-200 border border-indigo-400/50 transition';
+          }
+          setTimeout(() => {
+            if (map) {
+              map.invalidateSize({ animate: false });
+              renderHexGridLabelsOnly();
+            }
+          }, 80);
+        };
+        btnFullMap.addEventListener('click', () => toggleMapFullscreen(false));
+        window.addEventListener('keydown', (ev) => {
+          if (ev.key === 'Escape' && isMapFullscreen) {
+            toggleMapFullscreen(true);
+          }
+        });
+      }
 
       document.getElementById('selectStation').addEventListener('change', (e) => {
         const parts = e.target.value.split(',');
